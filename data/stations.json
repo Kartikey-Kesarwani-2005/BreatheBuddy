@@ -1,0 +1,14 @@
+{
+  "generated_for": "BreatheBuddy demo (mock OpenAQ/CPCB-style feed)",
+  "city": "Delhi",
+  "stations": [
+    {"station_id": "ST-ANAND-VIHAR", "lat": 28.6469, "lon": 77.3152, "aqi": 268, "pm25": 178.0, "pm10": 260.0, "no2": 62.0, "o3": 41.0, "wind_speed": 1.4, "wind_dir": 270, "traffic": 0.72},
+    {"station_id": "ST-DTEA", "lat": 28.6280, "lon": 77.2430, "aqi": 232, "pm25": 150.0, "pm10": 220.0, "no2": 55.0, "o3": 38.0, "wind_speed": 1.1, "wind_dir": 260, "traffic": 0.80},
+    {"station_id": "ST-IIT-DELHI", "lat": 28.5450, "lon": 77.1926, "aqi": 176, "pm25": 110.0, "pm10": 168.0, "no2": 44.0, "o3": 30.0, "wind_speed": 2.0, "wind_dir": 250, "traffic": 0.55},
+    {"station_id": "ST-LODHI-ROAD", "lat": 28.5915, "lon": 77.2216, "aqi": 158, "pm25": 96.0, "pm10": 150.0, "no2": 40.0, "o3": 29.0, "wind_speed": 2.2, "wind_dir": 245, "traffic": 0.60},
+    {"station_id": "ST-DWARKA-SEC8", "lat": 28.5823, "lon": 77.0500, "aqi": 121, "pm25": 71.0, "pm10": 118.0, "no2": 33.0, "o3": 26.0, "wind_speed": 3.1, "wind_dir": 255, "traffic": 0.35},
+    {"station_id": "ST-MAJNU-KA-TILA", "lat": 28.7076, "lon": 77.2090, "aqi": 288, "pm25": 195.0, "pm10": 285.0, "no2": 68.0, "o3": 45.0, "wind_speed": 0.9, "wind_dir": 265, "traffic": 0.78},
+    {"station_id": "ST-SIRI-FORT", "lat": 28.5500, "lon": 77.2200, "aqi": 143, "pm25": 85.0, "pm10": 132.0, "no2": 37.0, "o3": 27.0, "wind_speed": 2.5, "wind_dir": 248, "traffic": 0.50},
+    {"station_id": "ST-OKHLA-PH2", "lat": 28.5300, "lon": 77.2710, "aqi": 205, "pm25": 131.0, "pm10": 190.0, "no2": 49.0, "o3": 34.0, "wind_speed": 1.7, "wind_dir": 258, "traffic": 0.68}
+  ]
+}

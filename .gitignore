@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# SAM / AWS
+.aws-sam/
+.aws/
+infra/localstack/.localstack/
+
+# Local demo output
+data/alerts_outbox.json
+
+# Env
+.env

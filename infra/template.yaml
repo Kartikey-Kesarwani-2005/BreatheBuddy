@@ -1,0 +1,248 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  BreatheBuddy — hyperlocal air-quality buddy. Ingest -> nowcast -> Cedar policy
+  -> SNS alert, exposed via API Gateway, orchestrated by Step Functions, with a
+  web dashboard on Amplify Hosting. Uses only allowed AWS services.
+
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+  AlertEmail:
+    Type: String
+    Default: ""
+    Description: Optional email to subscribe to SNS alerts (leave blank to skip).
+  City:
+    Type: String
+    Default: Delhi
+
+Conditions:
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, ""]]
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        BB_USE_AWS: "true"
+        BB_CITY: !Ref City
+        BB_S3_RAW_BUCKET: !Ref IngestionBucket
+        BB_DDB_READINGS_TABLE: !Ref ReadingsTable
+        BB_DDB_ALERTS_TABLE: !Ref AlertsTable
+        BB_DDB_SUBSCRIBERS_TABLE: !Ref SubscribersTable
+        BB_SNS_TOPIC_ARN: !Ref AlertsTopic
+        BB_SQS_QUEUE_URL: !Ref BufferQueue
+
+Resources:
+  # ------------------------------------------------------------------ data
+  IngestionBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "breathebuddy-raw-${AWS::AccountId}-${AWS::Region}"
+
+  ReadingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: breathebuddy-readings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: station_id, AttributeType: S }
+        - { AttributeName: ts, AttributeType: S }
+      KeySchema:
+        - { AttributeName: station_id, KeyType: HASH }
+        - { AttributeName: ts, KeyType: RANGE }
+
+  AlertsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: breathebuddy-alerts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: alert_id, AttributeType: S }
+        - { AttributeName: ts, AttributeType: S }
+      KeySchema:
+        - { AttributeName: alert_id, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: ts-index
+          KeySchema: [{ AttributeName: ts, KeyType: HASH }]
+          Projection: { ProjectionType: ALL }
+
+  SubscribersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: breathebuddy-subscribers
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: subscriber_id, AttributeType: S }
+      KeySchema:
+        - { AttributeName: subscriber_id, KeyType: HASH }
+
+  # ------------------------------------------------------------- plumbing
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: breathebuddy-alerts
+      DisplayName: BreatheBuddy Alerts
+
+  AlertsEmailSub:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref AlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  BufferQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: breathebuddy-buffer
+      VisibilityTimeout: 60
+
+  # --------------------------------------------------------------- role
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: breathebuddy-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:PutItem, dynamodb:GetItem, dynamodb:Query,
+                         dynamodb:Scan, dynamodb:BatchWriteItem]
+                Resource: "*"
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource: !Sub "${IngestionBucket.Arn}/*"
+              - Effect: Allow
+                Action: [sns:Publish]
+                Resource: !Ref AlertsTopic
+              - Effect: Allow
+                Action: [sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage]
+                Resource: !GetAtt BufferQueue.Arn
+
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: states.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invoke-lambdas
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [lambda:InvokeFunction]
+                Resource: "*"
+
+  # ------------------------------------------------------------- functions
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../
+      Handler: infra.handler.app.lambda_ingest
+      Role: !GetAtt LambdaRole.Arn
+
+  NowcastFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../
+      Handler: infra.handler.app.lambda_nowcast
+      Role: !GetAtt LambdaRole.Arn
+
+  PolicyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../
+      Handler: infra.handler.app.lambda_policy
+      Role: !GetAtt LambdaRole.Arn
+
+  AlertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../
+      Handler: infra.handler.app.lambda_alert
+      Role: !GetAtt LambdaRole.Arn
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../
+      Handler: infra.handler.app.lambda_api
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        ApiRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+
+  # --------------------------------------------------------- orchestration
+  BreatheBuddyStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: breathebuddy-pipeline
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "BreatheBuddy: ingest -> nowcast -> decide -> alert",
+          "StartAt": "Ingest",
+          "States": {
+            "Ingest":  { "Type": "Task", "Resource": "${IngestFunction.Arn}",
+                         "Retry": [{"ErrorEquals": ["States.ALL"], "MaxAttempts": 2}],
+                         "Next": "Nowcast" },
+            "Nowcast": { "Type": "Task", "Resource": "${NowcastFunction.Arn}", "Next": "Decide" },
+            "Decide":  { "Type": "Task", "Resource": "${PolicyFunction.Arn}", "Next": "Alert" },
+            "Alert":   { "Type": "Task", "Resource": "${AlertFunction.Arn}", "End": true }
+          }
+        }
+
+  # ------------------------------------------------------------- schedule
+  FifteenMinuteRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: breathebuddy-every-15-min
+      ScheduleExpression: rate(15 minutes)
+      State: ENABLED
+      Targets:
+        - Id: ingest
+          Arn: !GetAtt IngestFunction.Arn
+
+  IngestSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref IngestFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt FifteenMinuteRule.Arn
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+  AlertsTopicArn:
+    Value: !Ref AlertsTopic
+  StateMachineArn:
+    Value: !Ref BreatheBuddyStateMachine
+  RawBucket:
+    Value: !Ref IngestionBucket

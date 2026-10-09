@@ -1,0 +1,15 @@
+# BreatheBuddy — OPTIONAL dependencies.
+#
+# The local demo needs NO third-party packages (Python standard library only):
+#     python run.py          # dashboard + API
+#     python run.py --demo   # CLI demo
+#
+# Install the packages below only to light up the full AWS/agent path.
+# Verified to install cleanly on Python 3.14 (cedarpy + strands-agents included),
+# but the code still degrades gracefully if a wheel is ever unavailable
+# (built-in Cedar evaluator, deterministic agent).
+
+boto3>=1.34.0              # S3 / DynamoDB / SNS / SQS against LocalStack or AWS
+strands-agents>=0.1.0      # Strands Agents SDK (agent orchestration)
+cedarpy>=4.0.0             # real Cedar engine (built-in fallback otherwise)
+opensearch-py>=2.4.0       # OpenSearch geo index (optional)

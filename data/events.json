@@ -1,0 +1,17 @@
+{
+  "events": [
+    {
+      "event_id": "stubble_nw_01",
+      "type": "stubble_burning",
+      "label": "Stubble burning — Punjab/Haryana belt",
+      "source_lat": 29.7000,
+      "source_lon": 76.3000,
+      "intensity": 1.0,
+      "wind_dir_deg": 300,
+      "radius_km": 220,
+      "base_aqi": 95,
+      "active": true,
+      "since": "2026-10-09T00:00:00Z"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+# AWS Amplify Hosting build spec for the BreatheBuddy dashboard.
+# Connect this repo in Amplify Hosting; it publishes the static frontend/.
+# Set the API URL in frontend/amplify-config.js to your API Gateway invoke URL.
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "Static BreatheBuddy dashboard - no build step"
+    build:
+      commands:
+        - echo "Publishing frontend/"
+  artifacts:
+    baseDirectory: frontend
+    files:
+      - "**/*"
+  cache:
+    paths: []

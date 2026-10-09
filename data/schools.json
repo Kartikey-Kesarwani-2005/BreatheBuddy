@@ -1,0 +1,7 @@
+{
+  "schools": [
+    {"school_id": "ABC", "name": "ABC Public School", "lat": 28.6129, "lon": 77.2295, "students": 1200, "rules_ref": "school_rules.cedar", "contact_email": "admin@abc-school.example"},
+    {"school_id": "GREEN", "name": "Green Valley School", "lat": 28.5750, "lon": 77.2100, "students": 640, "rules_ref": "school_rules.cedar", "contact_email": "office@greenvalley.example"},
+    {"school_id": "SUNRISE", "name": "Sunrise Vidyalaya", "lat": 28.6650, "lon": 77.2760, "students": 860, "rules_ref": "school_rules.cedar", "contact_email": "hello@sunrise.example"}
+  ]
+}

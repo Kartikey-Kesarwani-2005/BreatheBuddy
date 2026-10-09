@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BreatheBuddy — Har saans, safe.</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>BreatheBuddy</h1>
+      <span class="tag">Har saans, safe.</span>
+    </div>
+    <div class="header-actions">
+      <button id="btn-cycle" title="Run ingest → nowcast → policy → alert">Run 15-min cycle</button>
+      <button id="btn-auth" class="ghost">Sign in (Cognito)</button>
+    </div>
+  </header>
+
+  <div class="subhead">
+    <span class="for">For <b>school admins</b> &amp; <b>vulnerable commuters</b></span>
+    <span class="steps">
+      <b>1</b> Run cycle
+      <i>&rarr;</i> <b>2</b> Pick a school
+      <i>&rarr;</i> <b>3</b> Compare routes
+      <i>&rarr;</i> <b>4</b> Ask the agent
+    </span>
+    <span class="air">500&nbsp;m hyperlocal AQI &middot; 6-hour nowcast &middot; Cedar school rules</span>
+  </div>
+
+  <main>
+    <aside class="panel left">
+      <section class="card">
+        <h2>Today at your school</h2>
+        <select id="school-select"></select>
+        <div id="school-card" class="school-card">Loading…</div>
+      </section>
+
+      <section class="card">
+        <h2>Vulnerable alerts</h2>
+        <div id="alerts" class="alerts">No alerts yet.</div>
+      </section>
+    </aside>
+
+    <section class="map-wrap">
+      <div id="map"></div>
+      <div class="route-bar">
+        <div class="field">
+          <label>From (lat,lon)</label>
+          <input id="from" value="28.6000,77.1000" />
+        </div>
+        <div class="field">
+          <label>To (lat,lon)</label>
+          <input id="to" value="28.6000,77.3000" />
+        </div>
+        <button id="btn-route">Compare routes</button>
+      </div>
+      <div id="route-result" class="route-result"></div>
+      <div id="event-banner" class="event-banner" style="display:none"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <aside class="panel right">
+      <section class="card">
+        <h2>Ask BreatheBuddy</h2>
+        <p class="hint">Strands agent + Cedar policy</p>
+        <textarea id="question" rows="3">Should ABC School hold outdoor assembly at 8am tomorrow?</textarea>
+        <button id="btn-ask">Ask agent</button>
+        <div id="agent-out" class="agent-out"></div>
+      </section>
+
+      <section class="card">
+        <h2>Subscribe (vulnerable)</h2>
+        <form id="subscribe-form">
+          <input name="name" placeholder="Name" value="Ravi (asthma)" required />
+          <input name="phone" placeholder="Phone (+91…)" value="+91-90000-12345" />
+          <input name="email" type="email" placeholder="Email" />
+          <div class="row">
+            <select name="kind">
+              <option value="rider">Rider</option>
+              <option value="asthma">Asthma patient</option>
+              <option value="child">School child</option>
+              <option value="elderly">Elderly</option>
+            </select>
+            <input name="threshold_aqi" type="number" value="150" title="Alert threshold AQI" />
+          </div>
+          <div class="row">
+            <input name="lat" value="28.646" title="lat" />
+            <input name="lon" value="77.310" title="lon" />
+          </div>
+          <button type="submit">Subscribe</button>
+        </form>
+        <div id="sub-out" class="agent-out"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="amplify-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

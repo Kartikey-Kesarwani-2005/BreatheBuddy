@@ -1,0 +1,24 @@
+# LocalStack — run the AWS build path on your machine, no AWS account.
+#   docker compose -f infra/localstack/docker-compose.yml up -d
+#   pip install boto3
+#   python scripts/localstack_bootstrap.py
+#   python scripts/localstack_cycle.py
+version: "3.8"
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: breathebuddy-localstack
+    ports:
+      - "4566:4566"           # edge port (all services)
+    environment:
+      - SERVICES=s3,dynamodb,sns,sqs,stepfunctions,lambda,apigateway,events,logs
+      - DEBUG=0
+      - PERSISTENCE=1
+    volumes:
+      - "./.localstack:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
