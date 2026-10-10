@@ -1,14 +1,14 @@
 # BreatheBuddy
 
-**Har saans, safe.** — a hyperlocal air-quality buddy that predicts street-level AQI,
+**Har saans, safe.** - a hyperlocal air-quality buddy that predicts street-level AQI,
 warns the most exposed people on time, enforces school bad-day rules, and suggests the
 **cleanest** route instead of just the fastest.
 
-> Track: **Air — Help people breathe easier.** Sub-focus: **School safety on bad days**
+> Track: **Air - Help people breathe easier.** Sub-focus: **School safety on bad days**
 > (also covers AQI, pollution exposure, **stubble burning** and **indoor air**).
 > One-liner: predict → warn → act. Not just another AQI number.
 >
-> Built for **AWS Environmental Hacks** — *Bharat Builds Tour* by WeMakeDevs, Oct 8–11 2026.
+> Built for **AWS Environmental Hacks** - *Bharat Builds Tour* by WeMakeDevs, Oct 8-11 2026.
 
 ## Track alignment & eligibility
 
@@ -28,10 +28,10 @@ be deployed on AWS.* BreatheBuddy satisfies **both**:
 
 - **AWS open source tools used:** Strands Agents SDK, Cedar, OpenSearch, SAM CLI, LocalStack.
 - **Deployable on AWS:** `infra/template.yaml` (SAM) deploys to the free-tier Ship It services.
-- Every AWS service referenced is from the official Build It / Ship It lists — see the
+- Every AWS service referenced is from the official Build It / Ship It lists - see the
   [services section](#aws-services-used-all-from-the-provided-list).
 
-> Human step for the tournament: **verify your student status on AWS Builder Center** — it's
+> Human step for the tournament: **verify your student status on AWS Builder Center** - it's
 > required to compete and unlocks the rewards/credits.
 
 ---
@@ -52,9 +52,31 @@ be deployed on AWS.* BreatheBuddy satisfies **both**:
 | 10 | **Bilingual dashboard** (English ⇄ हिंदी), remembered per browser | `frontend/app.js` |
 | 11 | **OpenAPI 3.0 spec + offline `/docs`** and per-client **write rate limiting** (`429`) | `openapi.py`, `ratelimit.py` |
 
+## Screenshots
+
+Everything runs on one screen: the live AQI map, a forecast slider, route compare, the
+"Today at your school" decision card, and an agent you can just ask.
+
+| View | What it shows |
+|------|---------------|
+| `docs/img/01-dashboard.png` | Dashboard + 500 m AQI grid, colour-coded, with the 4-step guided strip |
+| `docs/img/02-forecast-slider.png` | Scrub the next 6 h on the map with the forecast time-slider |
+| `docs/img/03-route-compare.png` | Cleanest vs fastest route, each with a clean-index score |
+| `docs/img/04-school-agent.png` | School decision card (Cedar verdict + indoor advisory) and the agent reply |
+
+To add them: run `python run.py`, open <http://localhost:8000>, capture those four views,
+and drop the PNGs into `docs/img/` using the names above, then uncomment this block:
+
+<!--
+![Dashboard + AQI map](docs/img/01-dashboard.png)
+![Forecast time-slider](docs/img/02-forecast-slider.png)
+![Cleanest vs fastest route](docs/img/03-route-compare.png)
+![School decision card + agent](docs/img/04-school-agent.png)
+-->
+
 ## Architecture
 
-**Build It — local, open source, no AWS account**
+**Build It - local, open source, no AWS account**
 
 ```
  mock JSON feed ─► ingest ─► nowcast grid (500 m, 6 h) ─► clean/fast router
@@ -66,7 +88,7 @@ be deployed on AWS.* BreatheBuddy satisfies **both**:
                      stdlib HTTP API  ─►  Leaflet dashboard
 ```
 
-**Ship It — AWS free tier (allowed services only)**
+**Ship It - AWS free tier (allowed services only)**
 
 ```
  EventBridge(15m) ─► Lambda ingest ─► S3 (raw) + DynamoDB (latest)
@@ -88,11 +110,12 @@ be deployed on AWS.* BreatheBuddy satisfies **both**:
 
 > **New to the repo?** Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the
 > code map and request lifecycle, then [`docs/DESIGN_NOTES.md`](docs/DESIGN_NOTES.md)
-> for *why* the non-obvious choices were made.
+> for *why* the non-obvious choices were made, and [`docs/DEPLOY.md`](docs/DEPLOY.md)
+> to deploy the AWS half.
 
 ---
 
-## Quickstart — Build It (2 commands, zero dependencies)
+## Quickstart - Build It (2 commands, zero dependencies)
 
 Requires **Python 3.10+** (tested on 3.14). No pip installs, no AWS account.
 
@@ -102,7 +125,7 @@ python run.py --demo     # or: run the CLI demo of all acceptance criteria
 ```
 
 Open the dashboard, click **Run 15-min cycle**, then **Compare routes** and **Ask agent**.
-The map works **fully offline** — Leaflet and the Delhi basemap tiles are vendored
+The map works **fully offline** - Leaflet and the Delhi basemap tiles are vendored
 in `frontend/vendor/` (re-fetch/refresh tiles with `python scripts/fetch_tiles.py`);
 uncached areas fall back to the live tile server when online.
 
@@ -128,10 +151,10 @@ The Ask card has an **engine** selector (Auto / Strands + Bedrock / Deterministi
 
 ```bash
 python -m unittest discover -s tests -t . -v   # 52 unit tests
-python scripts/selfcheck.py                     # 96 end-to-end checks (policy, API, Lambda, auth, data source, OpenAPI, template)
+python scripts/selfcheck.py                     # 98 end-to-end checks (policy, API, Lambda, auth, data source, OpenAPI, template)
 ```
 
-CI runs all of the above (plus `cfn-lint` and `node --check`) on every push — see
+CI runs all of the above (plus `cfn-lint` and `node --check`) on every push - see
 `.github/workflows/ci.yml`.
 
 ---
@@ -172,7 +195,7 @@ curl -X POST http://localhost:8000/subscribe \
 ```bash
 curl -X POST http://localhost:8000/agent -H "Content-Type: application/json" \
   -d '{"question":"Should ABC School hold outdoor assembly at 8am tomorrow?"}'
-# -> "No — hold outdoor assembly at ABC Public School is not allowed (predicted AQI ~210).
+# -> "No - hold outdoor assembly at ABC Public School is not allowed (predicted AQI ~210).
 #     Alert sent to school admin via SNS."
 ```
 
@@ -219,14 +242,16 @@ BreatheBuddy/
 ├── tests/                     # stdlib unittest (52 tests)
 ├── docs/ARCHITECTURE.md       # code map + request lifecycle (start here)
 ├── docs/DESIGN_NOTES.md       # the "why" behind the non-obvious choices
+├── docs/DEPLOY.md             # step-by-step AWS SAM deploy + teardown
 ├── docs/BLOG.md               # AWS Builder Center blog draft (blog prize)
 ├── docs/SUBMISSION.md         # paste-ready submission pack
+├── docs/img/                  # dashboard screenshots (see docs/img/README.md)
 └── demo/demo_script.md        # 3-minute demo narration
 ```
 
 ---
 
-## Ship It — deploy to AWS (SAM)
+## Ship It - deploy to AWS (SAM)
 
 Pre-req: an AWS account on the **Free Tier** (up to $200 credits), plus
 [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/) and AWS credentials
@@ -251,11 +276,11 @@ Step Functions, EventBridge, IAM, CloudWatch, Cognito, CloudFront, Route 53**.
    ```
 2. **Kick a cycle** (don't wait 15 min): the EventBridge rule runs every 15 minutes, or run it
    now from the console: **Step Functions → breathebuddy-pipeline → Start execution** `{}`.
-3. **Point the frontend at the API** — edit `frontend/amplify-config.js`:
+3. **Point the frontend at the API** - edit `frontend/amplify-config.js`:
    ```js
    apiBase: "https://<id>.execute-api.<region>.amazonaws.com/prod"
    ```
-4. **Static hosting** — either **Amplify Hosting** (connect this repo; it reads `amplify.yml`
+4. **Static hosting** - either **Amplify Hosting** (connect this repo; it reads `amplify.yml`
    and publishes `frontend/` → `https://<branch>.<app>.amplifyapp.com`), **or** the bundled
    **S3 + CloudFront + Route 53** stack:
    ```bash
@@ -263,12 +288,12 @@ Step Functions, EventBridge, IAM, CloudWatch, Cognito, CloudFront, Route 53**.
    # optional custom domain: redeploy with DomainName=air.example.com HostedZoneId=<zone> \
    #   CertificateArn=<us-east-1 ACM arn>
    ```
-5. **Cognito auth (optional but wired)** — the template provisions a Cognito User Pool + client
+5. **Cognito auth (optional but wired)** - the template provisions a Cognito User Pool + client
    (outputs `UserPoolId`, `UserPoolClientId`). Deploy with `RequireAuth=true` to require a bearer
    token on `/subscribe` and `/cycle`; the API Gateway Cognito authorizer validates the JWT.
-6. **Email alerts (optional)** — redeploy with `AlertEmail=you@example.com` to subscribe it to the
+6. **Email alerts (optional)** - redeploy with `AlertEmail=you@example.com` to subscribe it to the
    SNS topic and receive real alert emails.
-7. **SageMaker nowcast (optional)** — deploy a model endpoint and redeploy with
+7. **SageMaker nowcast (optional)** - deploy a model endpoint and redeploy with
    `SagemakerEndpoint=<name>`; `nowcast_point` then delegates to it (`engine="sagemaker"`),
    falling back to the local model automatically.
 
@@ -288,7 +313,7 @@ python scripts/localstack_cycle.py          # writes S3 object + DDB items + SNS
 
 ---
 
-## Acceptance criteria — how each is met
+## Acceptance criteria - how each is met
 
 1. **Runs locally in <2 commands** → `python run.py` (works with the stdlib; no installs).
 2. **Cleanest ≠ fastest, lower avg AQI** → `python run.py --demo` step 3 shows the cleanest route
@@ -306,28 +331,28 @@ python scripts/localstack_cycle.py          # writes S3 object + DDB items + SNS
 
 | Criterion | BreatheBuddy |
 |-----------|--------------|
-| **01 Idea & impact** | One focused problem — *school safety on bad-air days* — solved well: not a vague "air quality app" but a specific rule engine that changes today's schedule for the people exposed (kids, riders, asthma patients). |
+| **01 Idea & impact** | One focused problem - *school safety on bad-air days* - solved well: not a vague "air quality app" but a specific rule engine that changes today's schedule for the people exposed (kids, riders, asthma patients). |
 | **02 Built on AWS** | Uses AWS **open source tools** (Strands Agents SDK, Cedar, OpenSearch; SAM CLI, LocalStack locally) **and** is deployable on AWS free tier (Lambda, DynamoDB, S3, SNS, SQS, Step Functions, API Gateway, EventBridge, CloudWatch, Cognito, CloudFront, Route 53, Amplify). |
 | **03 Design & usability** | One screen anyone can pick up: a guided 4-step strip ("Run cycle → pick a school → compare routes → ask the agent"), plain-language decision card ("Outdoor assembly cancelled"), color-coded AQI map, and a subscribe form for non-technical users. |
-| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 96/96, 52 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification, live OpenAQ feed adapter (mock fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green. |
-| **05 Demo video** | **3-minute** script covering problem, who it's for, full walkthrough, and where AWS fits — `demo/demo_script.md`. |
+| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 98/98, 52 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification, live OpenAQ feed adapter (mock fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green. |
+| **05 Demo video** | **3-minute** script covering problem, who it's for, full walkthrough, and where AWS fits - `demo/demo_script.md`. |
 
-> Note from the rules: *there is no live demo — the video is what judges see*, and *local and
+> Note from the rules: *there is no live demo - the video is what judges see*, and *local and
 > deployed projects are scored the same*. So a local recording is fully valid.
 
 ---
 
 ## Team & submission (Environmental Hacks, Oct 2026)
 
-**Track:** Air · **Team:** codeN4PTDY (Dev X) — Kartikey Kesarwani (lead), Krishna Gupta,
+**Track:** Air · **Team:** codeN4PTDY (Dev X) - Kartikey Kesarwani (lead), Krishna Gupta,
 Varun Chakraborty, @antidoe.
 
 Submission checklist:
 
 - [x] Working project that runs locally with **zero installs** + AWS-deployable SAM template.
 - [x] Uses **AWS open source tools** (Strands Agents SDK, Cedar, OpenSearch, SAM CLI, LocalStack).
-- [x] 3-minute demo video script — [`demo/demo_script.md`](demo/demo_script.md).
-- [ ] Blog write-up on **AWS Builder Center** (draft: [`docs/BLOG.md`](docs/BLOG.md)) — link it in the submission.
+- [x] 3-minute demo video script - [`demo/demo_script.md`](demo/demo_script.md).
+- [ ] Blog write-up on **AWS Builder Center** (draft: [`docs/BLOG.md`](docs/BLOG.md)) - link it in the submission.
 - [ ] Verify **student status on AWS Builder Center** (required to compete).
 - [ ] Record the video and paste the link in the submission.
 
@@ -345,7 +370,7 @@ No other AWS service is referenced anywhere in the code or templates.
 > The remaining list items are **alternatives, not additions**: containers (Finch/EKS Distro/
 > EKS Anywhere/EKS/ECS/Fargate), servers (Firecracker/EC2/Lightsail/App Runner), the SQL stores
 > (RDS/Aurora), the Java runtime (Corretto) and the no-code builder (PartyRock). This project
-> deliberately picks the **serverless + open-source** path, so those are intentionally not used —
+> deliberately picks the **serverless + open-source** path, so those are intentionally not used -
 > adding them all would be incoherent. Eligibility only requires **one** open-source tool or an
 > AWS deployment; BreatheBuddy has many.
 

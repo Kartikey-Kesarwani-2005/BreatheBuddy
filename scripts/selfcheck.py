@@ -330,8 +330,11 @@ def main() -> int:
     for fname, label in (("LICENSE", "MIT LICENSE"), ("pyproject.toml", "pyproject.toml"),
                          (os.path.join(".github", "workflows", "ci.yml"), "CI workflow"),
                          (os.path.join("docs", "ARCHITECTURE.md"), "architecture doc"),
-                         (os.path.join("docs", "DESIGN_NOTES.md"), "design notes")):
+                         (os.path.join("docs", "DESIGN_NOTES.md"), "design notes"),
+                         (os.path.join("docs", "DEPLOY.md"), "deploy guide")):
         check(f"{label} present", os.path.exists(os.path.join(ROOT, fname)))
+    _readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
+    check("README screenshots section", "## Screenshots" in _readme)
     _app = open(os.path.join(ROOT, "frontend", "app.js"), encoding="utf-8").read()
     check("forecast slider wired", "setForecast" in _app and "fc-slider" in _app)
     check("map-click routing wired", "onMapClick" in _app and "togglePickMode" in _app)
