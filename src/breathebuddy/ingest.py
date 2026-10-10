@@ -12,11 +12,14 @@ actually produced the readings, so the dashboard can show LIVE vs PREVIEW.
 """
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 import logging
+import math
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 from . import config
 from .models import Reading, now_iso
@@ -73,29 +76,75 @@ def _openaq_pm25(location: dict) -> float | None:
     return None
 
 
+def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in metres (haversine, stdlib)."""
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _near_centre(lat: float, lon: float) -> bool:
+    return _distance_m(lat, lon, config.CENTER_LAT, config.CENTER_LON) <= config.OPENAQ_RADIUS_M
+
+
 def fetch_openaq() -> list[Reading]:
-    """Live readings from OpenAQ v3 (raises on misconfig/network errors)."""
+    """Live PM2.5 readings near the city centre from the OpenAQ v3 API.
+
+    ``/v3/parameters/2/latest`` has no geo filter, so we paginate it (pages are
+    fetched concurrently) and keep only rows inside the configured radius around
+    the grid centre. Every row carries its own coordinates, which lets us skip
+    stale/global rows. Raises on misconfig/network errors so the caller can
+    fall back to bundled data.
+    """
     if not config.OPENAQ_API_KEY:
         raise RuntimeError("BB_OPENAQ_API_KEY not set")
-    url = (f"{config.OPENAQ_BASE}/locations?coordinates={config.CENTER_LAT},"
-           f"{config.CENTER_LON}&radius={config.OPENAQ_RADIUS_M}&limit=100")
-    req = urllib.request.Request(url, headers={
-        "X-API-Key": config.OPENAQ_API_KEY, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    out = []
-    for loc in data.get("results", []):
-        coord = loc.get("coordinates") or {}
+    # Only sensors that reported in the last 7 days: excludes long-dead stations
+    # (the OpenAQ feed still lists some from 2016) while keeping CPCB coverage
+    # (delhi: ~64 fresh stations vs 5 within 24h). Also trims pages to fetch.
+    since = (datetime.datetime.now(datetime.UTC)
+             - datetime.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    latest_url = f"{config.OPENAQ_BASE}/parameters/2/latest?limit=1000&datetime_min={since}"
+
+    def _get_page(page: int) -> dict:
+        url = f"{latest_url}&page={page}"
+        req = urllib.request.Request(url, headers={
+            "X-API-Key": config.OPENAQ_API_KEY, "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    first = _get_page(1)
+    first_rows = first.get("results", [])
+    total_found = int((first.get("meta") or {}).get("found") or len(first_rows))
+    total_pages = -(-total_found // 1000)  # ceil
+    pages = list(range(2, total_pages + 1))
+    rows = first_rows
+    if pages:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            rows = first_rows + [row for data in pool.map(_get_page, pages)
+                                 for row in data.get("results", [])]
+
+    out: list[Reading] = []
+    seen: set[int] = set()
+    for row in rows:
+        coord = row.get("coordinates") or {}
         lat, lon = coord.get("latitude"), coord.get("longitude")
-        pm25 = _openaq_pm25(loc)
-        if lat is None or lon is None or pm25 is None:
+        loc_id = row.get("locationsId")
+        value = row.get("value")
+        if lat is None or lon is None or loc_id in seen or value is None:
             continue
-        out.append(Reading(station_id=f"openaq-{loc.get('id')}",
+        if not _near_centre(float(lat), float(lon)):
+            continue
+        seen.add(loc_id)
+        pm25 = float(value)
+        out.append(Reading(station_id=f"openaq-{loc_id}",
                            lat=float(lat), lon=float(lon),
                            aqi=pm25_to_aqi(pm25), pm25=round(pm25, 1),
                            ts=now_iso()))
     if not out:
-        raise RuntimeError("OpenAQ returned no PM2.5 readings")
+        raise RuntimeError("no recent PM2.5 readings near the centre")
     return out
 
 

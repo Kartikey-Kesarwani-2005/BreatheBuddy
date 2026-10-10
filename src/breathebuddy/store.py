@@ -45,9 +45,11 @@ class Store:
 
     # -- readings ---------------------------------------------------------
     def put_readings(self, readings: list[Reading]) -> int:
+        # Every feed returns a complete snapshot (bundled or live), so replace
+        # rather than merge: otherwise the bundled stations would linger in the
+        # grid after a live ingest swaps the data source.
         with self._lock:
-            for r in readings:
-                self.readings[r.station_id] = r
+            self.readings = {r.station_id: r for r in readings}
             if self.aws:
                 self.aws.put_readings(readings)
             return len(readings)

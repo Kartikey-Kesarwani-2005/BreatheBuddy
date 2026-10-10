@@ -35,13 +35,14 @@ class TestIngestFeed(unittest.TestCase):
             config.OPENAQ_API_KEY = original
 
     def test_live_feed_falls_back_to_mock(self):
-        original = config.AQ_SOURCE
+        original_src, original_key = config.AQ_SOURCE, config.OPENAQ_API_KEY
         try:
-            config.AQ_SOURCE = "openaq"  # no API key -> live call fails
+            config.AQ_SOURCE = "openaq"
+            config.OPENAQ_API_KEY = ""   # force the live call to fail
             readings = fetch_readings()
         finally:
-            config.AQ_SOURCE = original
-        self.assertTrue(readings)                        # mock feed is non-empty
+            config.AQ_SOURCE, config.OPENAQ_API_KEY = original_src, original_key
+        self.assertTrue(readings)                        # bundle is non-empty
         self.assertFalse(readings[0].station_id.startswith("openaq-"))
 
     def test_default_source_is_live(self):

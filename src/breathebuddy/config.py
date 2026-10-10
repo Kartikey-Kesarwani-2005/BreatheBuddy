@@ -10,6 +10,30 @@ from pathlib import Path
 
 # --- Paths ---------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_dotenv() -> None:
+    """Read KEY=VALUE pairs from ``<root>/.env`` (stdlib only).
+
+    Never overrides a variable that is already set in the environment, so
+    ``setx BB_OPENAQ_API_KEY=...`` still wins. ``.env`` is gitignored on purpose
+    because it can hold the live API key.
+    """
+    dotenv = ROOT / ".env"
+    if not dotenv.exists():
+        return
+    for line in dotenv.read_text("utf-8", errors="ignore").splitlines():
+        line = line.strip()
+        if not line or line.lstrip().startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()
+
 DATA_DIR = Path(os.getenv("BB_DATA_DIR", ROOT / "data"))
 FRONTEND_DIR = Path(os.getenv("BB_FRONTEND_DIR", ROOT / "frontend"))
 POLICY_DIR = Path(__file__).resolve().parent / "policies"

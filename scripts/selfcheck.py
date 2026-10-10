@@ -320,12 +320,13 @@ def main() -> int:
     check("PM2.5 -> AQI breakpoints", pm25_to_aqi(60) == 100.0 and pm25_to_aqi(30) == 50.0)
     check("live feed is the default",
           str(os.environ.get("BB_AQ_SOURCE", "openaq")).lower() == "openaq")
-    _src = config.AQ_SOURCE
+    _src, _key = config.AQ_SOURCE, config.OPENAQ_API_KEY
     try:
         config.AQ_SOURCE = "openaq"           # no key -> must fall back to bundled
+        config.OPENAQ_API_KEY = ""
         live_fallback = fetch_readings()
     finally:
-        config.AQ_SOURCE = _src
+        config.AQ_SOURCE, config.OPENAQ_API_KEY = _src, _key
     check("live feed falls back to bundled data",
           bool(live_fallback) and effective_source()["live"] is False)
     check("auth accepts token offline (dev mode)", auth.verify_token("x") is not None)

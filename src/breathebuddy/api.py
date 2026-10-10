@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -247,18 +248,27 @@ class Handler(BaseHTTPRequestHandler):
         return self._send({"error": "not found", "path": path}, 404)
 
 
-def serve(host: str | None = None, port: int | None = None):
-    bootstrap()
-    # Seed the first readings from the live feed (bundled fallback if offline).
-    # The cycle endpoint re-ingests on demand; this just means the very first
-    # page load already reflects real data rather than a stale baseline.
-    from .nowcast import build_grid
+def _startup_ingest() -> None:
+    """Pull the first live readings without blocking the server from binding.
+
+    Runs in a daemon thread; the request handlers already serve the bundled grid
+    until this finishes. STORE operations are lock-protected, so a concurrent
+    reader sees either the old or the new grid, never a half-built one.
+    """
     try:
+        from .nowcast import build_grid
         summary = ingest_once(STORE)
         build_grid(STORE)
         log.info("startup ingest: %s readings, source=%s", summary["ingested"], summary["source"])
-    except Exception:  # pragma: no cover
+    except Exception:  # pragma: no cover - never crash the server on a feed error
         log.exception("startup ingest failed")
+
+
+def serve(host: str | None = None, port: int | None = None):
+    bootstrap()
+    # Fetch live data in the background so the dashboard is up immediately; the
+    # header badge flips to LIVE as soon as this completes (and the page polls).
+    threading.Thread(target=_startup_ingest, name="startup-ingest", daemon=True).start()
     host = host or config.HOST
     port = port or config.PORT
     try:

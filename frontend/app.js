@@ -693,16 +693,34 @@ function wireControls() {
 }
 
 // Show LIVE (OpenAQ) vs PREVIEW (bundled fallback) honestly in the header.
+let SRC_LIVE = false;
+function setBadge(ds) {
+  const el = document.getElementById("src-badge");
+  if (!el) return;
+  SRC_LIVE = !!ds.live;
+  el.textContent = ds.live ? t("src_live") : t("src_preview");
+  el.className = "src-badge " + (ds.live ? "live" : "preview");
+  el.title = ds.note || "";
+}
+
 async function loadSource() {
   const el = document.getElementById("src-badge");
   if (!el) return;
   try {
     const h = await fetchJSON("/health");
-    const ds = (h && h.data_source) || {};
-    el.textContent = ds.live ? t("src_live") : t("src_preview");
-    el.className = "src-badge " + (ds.live ? "live" : "preview");
-    el.title = ds.note || "";
+    setBadge((h && h.data_source) || {});
   } catch (e) { /* leave the badge alone when /health is unreachable */ }
+}
+
+// The server fetches live data in the background, so poll until it lands and
+// refresh the map/cards then (a page loaded at t=0 otherwise stays on bundled).
+async function watchSource(tries) {
+  for (let i = 0; i < (tries || 9); i++) {
+    if (SRC_LIVE) return;
+    await new Promise(r => setTimeout(r, 4000));
+    await loadSource();
+    if (SRC_LIVE) { await refreshAll(); return; }
+  }
 }
 
 async function refreshAll() {
@@ -726,6 +744,9 @@ async function bootstrapUI() {
   }
   // 3) Load data; failures never disable the buttons.
   await Promise.allSettled([loadGrid(), loadStations(), loadSchools(), loadAlerts(), loadEvents(), loadSource()]);
+  // 4) Live data arrives a few seconds later (server fetches it in the
+  //    background) - flip the badge and refresh the map when it does.
+  watchSource();
 }
 
 window.addEventListener("DOMContentLoaded", bootstrapUI);
