@@ -50,7 +50,8 @@ const I18N = {
     geo_unavailable: "Location unavailable",
     sub_done: "Subscribed {name} ({kind}) - alert threshold AQI {threshold}.",
     leg_good: "Good (0-50)", leg_sat: "Satisfactory (51-100)", leg_mod: "Moderate (101-200)",
-    leg_poor: "Poor (201-300)", leg_vpoor: "Very poor (301-400)", leg_sev: "Severe (400+)"
+    leg_poor: "Poor (201-300)", leg_vpoor: "Very poor (301-400)", leg_sev: "Severe (400+)",
+    src_live: "LIVE · OpenAQ", src_preview: "PREVIEW · bundled data"
   },
   hi: {
     run_cycle: "15-मिनट चक्र चलाएँ", sign_in: "साइन इन (Cognito)",
@@ -84,7 +85,8 @@ const I18N = {
     geo_unavailable: "स्थान उपलब्ध नहीं",
     sub_done: "{name} सब्सक्राइब हुआ ({kind}) - अलर्ट थ्रेशोल्ड AQI {threshold}।",
     leg_good: "अच्छा (0-50)", leg_sat: "संतोषजनक (51-100)", leg_mod: "मध्यम (101-200)",
-    leg_poor: "खराब (201-300)", leg_vpoor: "बहुत खराब (301-400)", leg_sev: "गंभीर (400+)"
+    leg_poor: "खराब (201-300)", leg_vpoor: "बहुत खराब (301-400)", leg_sev: "गंभीर (400+)",
+    src_live: "लाइव · OpenAQ", src_preview: "प्रीव्यू · बंडल डेटा"
   }
 };
 
@@ -166,6 +168,7 @@ function setLang(lang) {
   if (document.getElementById("alerts")) loadAlerts();
   if (document.getElementById("event-banner")) loadEvents();
   if (typeof renderLegend === "function") renderLegend();
+  loadSource();
 }
 
 let map, gridLayer, stationLayer, schoolLayer, routeLayer, pickLayer, meLayer;
@@ -689,9 +692,22 @@ function wireControls() {
   if (form) form.onsubmit = submitSubscribe;
 }
 
+// Show LIVE (OpenAQ) vs PREVIEW (bundled fallback) honestly in the header.
+async function loadSource() {
+  const el = document.getElementById("src-badge");
+  if (!el) return;
+  try {
+    const h = await fetchJSON("/health");
+    const ds = (h && h.data_source) || {};
+    el.textContent = ds.live ? t("src_live") : t("src_preview");
+    el.className = "src-badge " + (ds.live ? "live" : "preview");
+    el.title = ds.note || "";
+  } catch (e) { /* leave the badge alone when /health is unreachable */ }
+}
+
 async function refreshAll() {
   const id = document.getElementById("school-select").value;
-  await Promise.allSettled([loadGrid(), loadStations(), loadAlerts(), loadEvents()]);
+  await Promise.allSettled([loadGrid(), loadStations(), loadAlerts(), loadEvents(), loadSource()]);
   if (id) await loadSchoolCard(id);
 }
 
@@ -709,7 +725,7 @@ async function bootstrapUI() {
     showMapNotice("Map library unavailable (offline?). The side panels still work.");
   }
   // 3) Load data; failures never disable the buttons.
-  await Promise.allSettled([loadGrid(), loadStations(), loadSchools(), loadAlerts(), loadEvents()]);
+  await Promise.allSettled([loadGrid(), loadStations(), loadSchools(), loadAlerts(), loadEvents(), loadSource()]);
 }
 
 window.addEventListener("DOMContentLoaded", bootstrapUI);

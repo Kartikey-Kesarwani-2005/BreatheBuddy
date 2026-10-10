@@ -38,7 +38,13 @@ header {
   color: #06192b; font-size: 10px; font-weight: 800; margin-right: 3px;
 }
 .subhead .steps i { color: var(--border); font-style: normal; margin: 0 6px; }
-.subhead .air { margin-left: auto; color: var(--accent); }
+.subhead .air { margin-left: auto; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+.src-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border);
+}
+.src-badge.live { color: #06231a; background: #2ecc71; border-color: #2ecc71; }
+.src-badge.preview { color: var(--text); background: var(--card); opacity: 0.9; }
 button {
   background: var(--accent); color: #06231a; border: 0; padding: 8px 12px;
   border-radius: 8px; font-weight: 600; cursor: pointer;

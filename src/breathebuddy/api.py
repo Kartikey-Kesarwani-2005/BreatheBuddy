@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlparse
 from . import agent as agent_mod
 from . import auth, config, openapi
 from .geo import valid_latlon
+from .ingest import effective_source, ingest_once
 from .ratelimit import WRITE_LIMITER
 from .service import (
     aqi_query,
@@ -131,7 +132,8 @@ class Handler(BaseHTTPRequestHandler):
         path, q = u.path, parse_qs(u.query)
 
         if path in ("/health", "/api/health"):
-            return self._send({"ok": True, "city": config.CITY_NAME})
+            return self._send({"ok": True, "city": config.CITY_NAME,
+                               "data_source": effective_source()})
 
         if path in ("/openapi.json", "/api/openapi.json"):
             return self._send(openapi.SPEC)
@@ -247,6 +249,16 @@ class Handler(BaseHTTPRequestHandler):
 
 def serve(host: str | None = None, port: int | None = None):
     bootstrap()
+    # Seed the first readings from the live feed (bundled fallback if offline).
+    # The cycle endpoint re-ingests on demand; this just means the very first
+    # page load already reflects real data rather than a stale baseline.
+    from .nowcast import build_grid
+    try:
+        summary = ingest_once(STORE)
+        build_grid(STORE)
+        log.info("startup ingest: %s readings, source=%s", summary["ingested"], summary["source"])
+    except Exception:  # pragma: no cover
+        log.exception("startup ingest failed")
     host = host or config.HOST
     port = port or config.PORT
     try:

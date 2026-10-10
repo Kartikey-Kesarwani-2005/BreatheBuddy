@@ -59,7 +59,7 @@ returning a reasoned decision with an action.
 Local (Build It): no AWS account, no pip installs.
 
 ```
- mock JSON feed -> ingest -> nowcast grid (500 m, 6 h) -> clean/fast router
+ live OpenAQ feed -> ingest -> nowcast grid (500 m, 6 h) -> clean/fast router
                                     |
                      Strands Agents SDK agent (tools)
                                     |
@@ -128,9 +128,10 @@ Hackathon projects are mostly a list of things that unexpectedly didn't work. Ou
   `{"lat": ["28.6"]}` (list) or `{"lat": "28.6"}` (string) depending on how it is
   invoked. We normalised both so the handler matches the local server exactly, verified
   by a parity self-check.
-- **Offline-first demo.** Judges shouldn't need internet, credentials, or a credit card
-  to see it run. So Leaflet is vendored, the tiles are vendored, and `python run.py`
-  needs *nothing* installed.
+- **Live first, offline-safe.** Real Delhi AQI streams in by default through the
+  OpenAQ v3 live feed; judges who go offline still see a working demo on the bundled
+  fallback. No credentials or credit card required to see it run: Leaflet is vendored,
+  the tiles are vendored, and `python run.py` needs *nothing* installed.
 
 ## Why it is built on AWS (and how)
 
@@ -160,7 +161,7 @@ git clone https://github.com/Kartikey-Kesarwani-2005/BreatheBuddy
 cd BreatheBuddy
 python run.py                 # dashboard at http://localhost:8000 (stdlib only)
 python run.py --demo          # CLI walkthrough of every acceptance criterion
-python scripts/selfcheck.py   # 99/99 end-to-end checks
+python scripts/selfcheck.py   # 100/100 end-to-end checks
 ```
 
 To run the cloud version:

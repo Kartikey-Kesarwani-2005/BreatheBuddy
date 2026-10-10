@@ -97,11 +97,11 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 
 ## Backup proof (if a judge asks "does it really run?")
 
-- `python scripts/selfcheck.py` → **99/99** end-to-end checks (policy, API,
+- `python scripts/selfcheck.py` → **100/100** end-to-end checks (policy, API,
   template, stubble plume, Strands SDK, SQS buffer, JWT auth, OpenAQ adapter, no
   out-of-list AWS services).
 - `python run.py --demo` → all five acceptance criteria printed.
-- `python -m unittest discover -s tests -t .` → **56 tests pass** (CI runs these).
+- `python -m unittest discover -s tests -t .` → **57 tests pass** (CI runs these).
 
 ---
 
@@ -130,7 +130,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 | 2:00 | Type question → **Ask agent** → read answer | agent decides + acts |
 | 2:15 | Alt-tab: open `src/breathebuddy/policies/school_rules.cedar` | "AWS open-source: Cedar" |
 | 2:25 | Alt-tab: open `infra/template.yaml` | Lambda/Step Functions/SNS/Amplify |
-| 2:35 | Alt-tab: terminal `python scripts/selfcheck.py` (99/99) | "it really runs" |
+| 2:35 | Alt-tab: terminal `python scripts/selfcheck.py` (100/100) | "it really runs" |
 | 2:45 | Back to map + school card | Impact + "Har saans, safe." |
 | 3:00 | Stop recording | - |
 
@@ -141,7 +141,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 
 **Pro tips**
 - If the map is slow on first paint, wait 2-3 s after load before narrating.
-- If a number changes between takes, that's fine - the mock feed jitters every 15 min;
+- If a number changes between takes, that's fine - the bundled preview changes every 15 min;
   just make sure the *blocked/allowed* logic matches what you say.
 - Keep it under 3:00; trim dead time rather than speeding up.
 

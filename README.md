@@ -40,7 +40,7 @@ be deployed on AWS.* BreatheBuddy satisfies **both**:
 
 | # | Feature | Where |
 |---|---------|-------|
-| 1 | Ingest AQI + weather + traffic (**bundled mock** or **live OpenAQ v3**, every 15 min) | `ingest.py`, EventBridge schedule |
+| 1 | Ingest AQI (**live OpenAQ v3**, bundled feed when offline, every 15 min) | `ingest.py`, EventBridge schedule |
 | 2 | Hyperlocal nowcast on a **~500 m grid, next 6 h** | `nowcast.py` |
 | 3 | **Fastest vs cleanest** route with a clean-index score | `routing.py` |
 | 4 | Vulnerable-profile alerts on threshold crossing | `alerts.py`, SNS |
@@ -78,14 +78,15 @@ and drop the PNGs into `docs/img/` using the names above.
 **Build It - local, open source, no AWS account**
 
 ```
- mock JSON feed ─► ingest ─► nowcast grid (500 m, 6 h) ─► clean/fast router
+ live OpenAQ feed ─► ingest ─► nowcast grid (500 m, 6 h) ─► clean/fast router
                                    │
                      Strands Agents SDK agent (tools)
                                    │
-                     Cedar school policy ─► alerts (mock outbox / SNS)
+                     Cedar school policy ─► alerts (SNS / outbox)
                                    │
                      stdlib HTTP API  ─►  Leaflet dashboard
 ```
+Offline? The live feed quietly falls back to a bundled dataset - the demo never breaks.
 
 **Ship It - AWS free tier (allowed services only)**
 
@@ -241,7 +242,7 @@ BreatheBuddy/
 │   ├── handler/app.py
 │   └── localstack/docker-compose.yml
 ├── scripts/                   # fetch_tiles.py, selfcheck.py, LocalStack bootstrap + cycle
-├── tests/                     # stdlib unittest (56 tests)
+├── tests/                     # stdlib unittest (57 tests)
 ├── docs/ARCHITECTURE.md       # code map + request lifecycle (start here)
 ├── docs/DESIGN_NOTES.md       # the "why" behind the non-obvious choices
 ├── docs/DEPLOY.md             # step-by-step AWS SAM deploy + teardown
@@ -300,7 +301,7 @@ Step Functions, EventBridge, IAM, CloudWatch, Cognito, CloudFront, Route 53**.
    falling back to the local model automatically.
 
 > Cost note: everything here is free-tier friendly (on-demand DynamoDB, Lambda/Step Functions
-> request-based, S3 storage). The mock feed keeps volumes tiny; tear down with
+> request-based, S3 storage). The bundled dataset keeps volumes tiny; tear down with
 > `sam delete` / `aws cloudformation delete-stack` when done.
 
 ### Try the AWS path locally with LocalStack
@@ -336,7 +337,7 @@ python scripts/localstack_cycle.py          # writes S3 object + DDB items + SNS
 | **01 Idea & impact** | One focused problem - *school safety on bad-air days* - solved well: not a vague "air quality app" but a specific rule engine that changes today's schedule for the people exposed (kids, riders, asthma patients). |
 | **02 Built on AWS** | Uses AWS **open source tools** (Strands Agents SDK, Cedar; SAM CLI, LocalStack locally) **and** is deployable on AWS free tier (Lambda, DynamoDB, S3, SNS, SQS, Step Functions, API Gateway, EventBridge, CloudWatch, Cognito, CloudFront, Route 53, Amplify). |
 | **03 Design & usability** | One screen anyone can pick up: a guided 4-step strip ("Run cycle → pick a school → compare routes → ask the agent"), plain-language decision card ("Outdoor assembly cancelled"), color-coded AQI map, and a subscribe form for non-technical users. |
-| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 99/99, 56 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification (RS256/ES256, fail-closed), live OpenAQ feed adapter (mock fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green (ruff + coverage). |
+| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 100/100, 57 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification (RS256/ES256, fail-closed), live OpenAQ v3 feed (bundled offline fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green (ruff + coverage). |
 | **05 Demo video** | **3-minute** script covering problem, who it's for, full walkthrough, and where AWS fits - `demo/demo_script.md`. |
 
 > Note from the rules: *there is no live demo - the video is what judges see*, and *local and
@@ -380,14 +381,15 @@ No other AWS service is referenced anywhere in the code or templates.
 ## Configuration
 
 All settings are environment variables (see `.env.example`): grid size, forecast horizon,
-city centre, alert thresholds, data source (`BB_AQ_SOURCE=mock|openaq`), auth, and AWS
+city centre, alert thresholds, data source (`BB_AQ_SOURCE=openaq|mock`), auth, and AWS
 endpoints/tables. Defaults target Delhi with a 32×44 grid of 500 m cells (6-hour horizon).
 
 ## Limitations (hackathon scope)
 
-- Ingest defaults to the bundled mock feed with deterministic 15-minute jitter. Set
-  `BB_AQ_SOURCE=openaq` + `BB_OPENAQ_API_KEY` to pull **live** OpenAQ v3 readings (converted
-  to CPCB AQI); any live error falls back to mock, so the demo never breaks.
+- Ingest streams **live OpenAQ v3** by default. Grab a free key at `api.openaq.org/register`
+  and set `BB_OPENAQ_API_KEY` (PM2.5 is converted to CPCB-style AQI); without a key, or when
+  offline, the feed falls back to the bundled dataset so the app always runs. The header
+  badge shows LIVE vs PREVIEW so it is always honest about the data source.
 - The nowcast is an explainable IDW + diurnal model; swap it for a SageMaker endpoint via
   `nowcast.build_grid` / `nowcast_point` (same interface).
 - Deployed Lambdas seed the demo dataset; a production build would read all readings from

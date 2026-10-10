@@ -1,13 +1,14 @@
-"""Pull an AQI+weather+traffic feed and hand it to the store.
+"""Pull a live AQI feed and hand it to the store.
 
 Two feeds are wired up:
 
-  mock    -- data/stations.json with a small deterministic jitter, so it runs
-             offline and still moves between cycles.
-  openaq  -- the live OpenAQ v3 API (needs BB_OPENAQ_API_KEY).
+  openaq -- the live OpenAQ v3 API (free key; set BB_OPENAQ_API_KEY).
+  mock   -- data/stations.json with a small deterministic jitter, used only as
+            an offline/error fallback so the app can never be taken down by a
+            flaky network.
 
-Choose with BB_AQ_SOURCE. If the live feed errors out we quietly fall back to
-mock -- a flaky network shouldn't break the demo.
+Choose with BB_AQ_SOURCE (default: openaq). Every cycle records which feed
+actually produced the readings, so the dashboard can show LIVE vs PREVIEW.
 """
 from __future__ import annotations
 
@@ -100,19 +101,41 @@ def fetch_openaq() -> list[Reading]:
 
 FEEDS = {"mock": fetch_mock, "openaq": fetch_openaq}
 
+# Which feed actually produced the current readings (live vs bundled fallback),
+# so the dashboard / health-check can report the truth instead of the config.
+LAST_SOURCE = "mock"
+LAST_NOTE = "no feed fetched yet"
+
+
+def effective_source() -> dict:
+    """The feed behind the current readings (for /health + the dashboard badge)."""
+    configured = (config.AQ_SOURCE or "mock").lower()
+    return {
+        "configured": configured,
+        "source": LAST_SOURCE,
+        "live": LAST_SOURCE != "mock",
+        "note": LAST_NOTE,
+        "key_set": bool(config.OPENAQ_API_KEY),
+    }
+
 
 def fetch_readings() -> list[Reading]:
-    """Read from the configured source, falling back to mock on any error."""
+    """Read from the configured source, falling back to bundled data on error."""
+    global LAST_SOURCE, LAST_NOTE
     source = (config.AQ_SOURCE or "mock").lower()
     feed = FEEDS.get(source, fetch_mock)
     if feed is fetch_mock:
+        LAST_SOURCE, LAST_NOTE = "mock", "bundled feed (offline preview)"
         return feed()
     try:
         readings = feed()
+        LAST_SOURCE = source
+        LAST_NOTE = f"live OpenAQ feed, {len(readings)} stations"
         log.info("ingest: live feed '%s' -> %s readings", source, len(readings))
         return readings
     except Exception as exc:  # noqa: BLE001 - never let a feed error kill the cycle
-        log.warning("ingest: live feed '%s' failed (%s); using mock", source, exc)
+        LAST_SOURCE, LAST_NOTE = "mock", f"{source} unavailable ({exc}); using bundled feed"
+        log.warning("ingest: live feed '%s' failed (%s); using bundled feed", source, exc)
         return fetch_mock()
 
 
@@ -127,7 +150,8 @@ def ingest_once(store: Store | None = None) -> dict:
     n = store.put_readings(readings)
     summary = {
         "ingested": n,
-        "source": (config.AQ_SOURCE or "mock").lower(),
+        "source": LAST_SOURCE,
+        "live": LAST_SOURCE != "mock",
         "ts": now_iso(),
         "stations": [r.station_id for r in readings],
         "elapsed_ms": round((time.time() - t0) * 1000, 1),

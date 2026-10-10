@@ -1,10 +1,14 @@
 """Command-line demo: exercises every acceptance criterion and prints results.
 
     python -m breathebuddy.demo
+
+Uses the bundled feed so the printed numbers are reproducible; the dashboard
+(``python run.py``) uses the live OpenAQ feed by default.
 """
 from __future__ import annotations
 
 from . import agent as agent_mod
+from . import config
 from .service import aqi_query, bootstrap, route_query, run_cycle, school_today
 from .store import STORE
 
@@ -16,6 +20,7 @@ def line(title: str) -> None:
 
 
 def main() -> None:
+    config.AQ_SOURCE = "mock"  # deterministic, offline-safe walkthrough
     bootstrap()
     line("1. INGEST + NOWCAST + ALERTS  (pipeline cycle)")
     cycle = run_cycle()

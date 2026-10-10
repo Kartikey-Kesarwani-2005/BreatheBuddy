@@ -68,15 +68,20 @@ better than a black-box model:
 The interface is kept identical to a hosted SageMaker endpoint so the model can be
 swapped later without touching the API. See `nowcast.py`.
 
-## 6. Deterministic mock feed
+## 6. Deterministic bundled fallback
 
-The offline feed perturbs each station's AQI using a hash of
-`station_id + 15-minute-bucket` (`ingest._jitter`), not `random()`. Two
+The live OpenAQ v3 feed is the default. When it is unreachable (offline, or a
+free key is not set yet), the bundled feed perturbs each station's AQI using a
+hash of `station_id + 15-minute-bucket` (`ingest._jitter`), not `random()`. Two
 consequences, both wanted:
 
 - Repeated runs in the same bucket give the same numbers, so **tests are stable**.
 - Values still move between cycles, so the dashboard visibly *does something* when
   you click "Run 15-min cycle".
+
+Every ingest records which feed actually produced the readings
+(`ingest.effective_source`), and the header badge shows LIVE vs PREVIEW rather
+than pretending.
 
 ## 7. Alert de-duplication
 

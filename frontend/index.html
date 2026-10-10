@@ -31,7 +31,10 @@
       <i>&rarr;</i> <b>3</b> Compare routes
       <i>&rarr;</i> <b>4</b> Ask the agent
     </span>
-    <span class="air" data-i18n="air_line">500&nbsp;m hyperlocal AQI &middot; 6-hour nowcast &middot; Cedar school rules</span>
+    <span class="air">
+      <span data-i18n="air_line">500&nbsp;m hyperlocal AQI &middot; 6-hour nowcast &middot; Cedar school rules</span>
+      <span id="src-badge" class="src-badge preview" role="status" aria-live="polite"></span>
+    </span>
   </div>
 
   <main>
@@ -92,7 +95,7 @@
         <h2 data-i18n="ask_title">Ask BreatheBuddy</h2>
         <p class="hint" data-i18n="ask_hint">Strands agent + Cedar policy</p>
         <textarea id="question" rows="3" aria-label="Your question"
-          >Should ABC School hold outdoor assembly at 8am tomorrow?</textarea>
+          >Should Mater Dei School hold outdoor assembly at 8am tomorrow?</textarea>
         <select id="engine" title="Agent engine" aria-label="Agent engine">
           <option value="auto" data-i18n="eng_auto">Auto (Strands SDK if configured)</option>
           <option value="strands">Strands SDK + Bedrock</option>

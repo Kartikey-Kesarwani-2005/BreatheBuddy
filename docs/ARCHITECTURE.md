@@ -9,7 +9,7 @@ review, read this file top to bottom and you will know where everything lives.
 
 BreatheBuddy is a small pipeline with a thin API in front of it.
 
-1. **Ingest** pulls AQI readings (bundled mock feed, or the live OpenAQ v3 API).
+1. **Ingest** streams live AQI readings (OpenAQ v3; bundled feed as an offline fallback).
 2. **Nowcast** turns those scattered stations into a 500 m grid covering the next
    6 hours, adding a wind-driven stubble-burning plume on top.
 3. **Policy** (Cedar) decides what a school is allowed to do today, and

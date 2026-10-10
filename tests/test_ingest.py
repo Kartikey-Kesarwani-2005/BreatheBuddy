@@ -44,10 +44,18 @@ class TestIngestFeed(unittest.TestCase):
         self.assertTrue(readings)                        # mock feed is non-empty
         self.assertFalse(readings[0].station_id.startswith("openaq-"))
 
-    def test_default_source_is_mock(self):
-        readings = fetch_readings()
+    def test_default_source_is_live(self):
+        self.assertEqual(config.AQ_SOURCE, "openaq")
+
+    def test_missing_key_falls_back_to_bundled_by_default(self):
+        original = config.OPENAQ_API_KEY
+        try:
+            config.OPENAQ_API_KEY = ""
+            readings = fetch_readings()
+        finally:
+            config.OPENAQ_API_KEY = original
         self.assertTrue(readings)
-        self.assertTrue(all(r.aqi > 0 for r in readings))
+        self.assertFalse(readings[0].station_id.startswith("openaq-"))
 
     def test_unknown_source_uses_mock(self):
         original = config.AQ_SOURCE

@@ -316,15 +316,18 @@ def main() -> int:
     # ------------------------------------------- data source + auth + tooling
     section("Data source + auth + project tooling")
     from breathebuddy import auth
-    from breathebuddy.ingest import fetch_readings, pm25_to_aqi
+    from breathebuddy.ingest import effective_source, fetch_readings, pm25_to_aqi
     check("PM2.5 -> AQI breakpoints", pm25_to_aqi(60) == 100.0 and pm25_to_aqi(30) == 50.0)
+    check("live feed is the default",
+          str(os.environ.get("BB_AQ_SOURCE", "openaq")).lower() == "openaq")
     _src = config.AQ_SOURCE
     try:
-        config.AQ_SOURCE = "openaq"           # no key -> must fall back to mock
+        config.AQ_SOURCE = "openaq"           # no key -> must fall back to bundled
         live_fallback = fetch_readings()
     finally:
         config.AQ_SOURCE = _src
-    check("live feed falls back to mock", bool(live_fallback))
+    check("live feed falls back to bundled data",
+          bool(live_fallback) and effective_source()["live"] is False)
     check("auth accepts token offline (dev mode)", auth.verify_token("x") is not None)
     check("auth rejects empty token", auth.verify_token("") is None)
     check("bearer parsing", auth.bearer({"Authorization": "Bearer abc"}) == "abc")

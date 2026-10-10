@@ -43,10 +43,10 @@ HOST = os.getenv("BB_HOST", "127.0.0.1")
 PORT = _i("BB_PORT", 8000)
 
 # --- Air-quality data source ---------------------------------------------
-# "mock" = bundled feed (offline, deterministic). "openaq" = live OpenAQ v3 API
-# (needs BB_OPENAQ_API_KEY). Any live-feed error falls back to mock so a bad
-# network doesn't take down the demo.
-AQ_SOURCE = os.getenv("BB_AQ_SOURCE", "mock")
+# "openaq" = live OpenAQ v3 API (free key, set BB_OPENAQ_API_KEY). "mock" = the
+# bundled deterministic feed, kept only as an offline fallback. Any live-feed
+# error falls back to bundled data so a bad network never takes down the app.
+AQ_SOURCE = os.getenv("BB_AQ_SOURCE", "openaq")
 OPENAQ_API_KEY = os.getenv("BB_OPENAQ_API_KEY", "")
 OPENAQ_BASE = os.getenv("BB_OPENAQ_BASE", "https://api.openaq.org/v3")
 OPENAQ_RADIUS_M = _i("BB_OPENAQ_RADIUS_M", 25000)
