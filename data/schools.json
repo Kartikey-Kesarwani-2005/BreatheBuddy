@@ -1,7 +1,7 @@
 {
   "schools": [
-    {"school_id": "ABC", "name": "ABC Public School", "lat": 28.6129, "lon": 77.2295, "students": 1200, "rules_ref": "school_rules.cedar", "contact_email": "admin@abc-school.example"},
-    {"school_id": "GREEN", "name": "Green Valley School", "lat": 28.5750, "lon": 77.2100, "students": 640, "rules_ref": "school_rules.cedar", "contact_email": "office@greenvalley.example"},
-    {"school_id": "SUNRISE", "name": "Sunrise Vidyalaya", "lat": 28.6650, "lon": 77.2760, "students": 860, "rules_ref": "school_rules.cedar", "contact_email": "hello@sunrise.example"}
+    {"school_id": "ABC", "name": "Mater Dei School", "lat": 28.6164, "lon": 77.2369, "students": 1200, "rules_ref": "school_rules.cedar", "contact_email": "admin@materdei.example"},
+    {"school_id": "GREEN", "name": "Dr. B. R. Ambedkar University Delhi (Lodhi Road Campus)", "lat": 28.5811, "lon": 77.2196, "students": 2500, "rules_ref": "school_rules.cedar", "contact_email": "office@ambedkaruniversity.example"},
+    {"school_id": "SUNRISE", "name": "Rose Merry Convent School", "lat": 28.6632, "lon": 77.2764, "students": 860, "rules_ref": "school_rules.cedar", "contact_email": "hello@rosemerry.example"}
   ]
 }

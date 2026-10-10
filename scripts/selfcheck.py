@@ -96,7 +96,7 @@ def main() -> int:
     # ------------------------------------------------------------------ agent
     section("Agent")
     from breathebuddy import agent as agent_mod
-    ans = agent_mod.ask("Should ABC School hold outdoor assembly at 8am tomorrow?")
+    ans = agent_mod.ask("Should Mater Dei School hold outdoor assembly at 8am tomorrow?")
     check("agent returns an answer", bool(ans.get("answer")))
     check("agent took action (blocked -> alert)", "Alert sent" in ans["answer"] or "not allowed" in ans["answer"])
     check("deterministic engine usable", agent_mod.ask("aqi", prefer_strands=False)["engine"] == "simple")
@@ -148,7 +148,7 @@ def main() -> int:
         check("GET /buffer", "buffered" in get("/buffer"))
         sub = post("/subscribe", {"name": "API", "threshold_aqi": 90, "lat": 28.6, "lon": 77.2})
         check("POST /subscribe", sub["subscriber_id"].startswith("sub_"))
-        ag = post("/agent", {"question": "Should ABC School hold outdoor assembly tomorrow?"})
+        ag = post("/agent", {"question": "Should Mater Dei School hold outdoor assembly tomorrow?"})
         check("POST /agent", "answer" in ag)
         check("POST /agent engine=simple", post("/agent", {"question": "aqi", "engine": "simple"})["engine"] == "simple")
         cyc = post("/cycle", {})

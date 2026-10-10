@@ -52,7 +52,7 @@ def main() -> None:
         print(f"  cedar outdoor_assembly -> allowed={dec['allowed']} ({dec['reason']})")
 
     line("5. STRANDS AGENT (deterministic fallback if SDK absent)")
-    q = "Should ABC School hold outdoor assembly at 8am tomorrow?"
+    q = "Should Mater Dei School hold outdoor assembly at 8am tomorrow?"
     ans = agent_mod.ask(q, prefer_strands=False)
     print(f"Q: {q}")
     print(f"A: {ans['answer']}")

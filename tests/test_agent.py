@@ -32,14 +32,14 @@ class TestAgent(unittest.TestCase):
 
     def test_ask_falls_back_without_credentials(self):
         # No Bedrock credentials in CI/local -> must still return a usable answer.
-        res = ask("Should ABC School hold outdoor assembly tomorrow?",
+        res = ask("Should Mater Dei School hold outdoor assembly tomorrow?",
                   prefer_strands=True)
         self.assertIn("answer", res)
         self.assertTrue(res["answer"])
         self.assertIn(res["engine"], ("strands", "simple"))
 
     def test_simple_engine_always_offline(self):
-        res = ask("Should ABC School hold outdoor assembly tomorrow?", prefer_strands=False)
+        res = ask("Should Mater Dei School hold outdoor assembly tomorrow?", prefer_strands=False)
         self.assertEqual(res["engine"], "simple")
         self.assertTrue(res["answer"])
 

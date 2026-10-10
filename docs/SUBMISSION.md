@@ -41,7 +41,7 @@ can tap two points on the map or use "Near me".
 The decision layer is the heart of it: school schedule rules are written as **Cedar
 policies**, so the answer is *policy, not opinion*. At AQI 153 outdoor assembly is
 blocked but classes continue; at 300+ the school closes and moves remote. A **Strands
-Agents SDK** agent answers natural-language questions ("Should ABC School hold outdoor
+Agents SDK** agent answers natural-language questions ("Should Mater Dei School hold outdoor
 assembly at 8am tomorrow?") by calling tools, running the Cedar policy and sending the
 alert.
 

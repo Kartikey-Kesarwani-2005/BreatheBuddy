@@ -50,7 +50,7 @@ another AQI map. It was a system that **predicts, warns, and acts**.
    "Today at your school" card with an **indoor-air advisory**, and an agent you can
    just ask. The UI is bilingual (English and Hindi).
 
-Ask it in plain language, *"Should ABC School hold outdoor assembly at 8am tomorrow?"*,
+Ask it in plain language, *"Should Mater Dei School hold outdoor assembly at 8am tomorrow?"*,
 and the Strands agent fetches the AQI, runs the Cedar policy, and sends the alert,
 returning a reasoned decision with an action.
 

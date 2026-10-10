@@ -196,8 +196,8 @@ curl -X POST http://localhost:8000/subscribe \
 
 ```bash
 curl -X POST http://localhost:8000/agent -H "Content-Type: application/json" \
-  -d '{"question":"Should ABC School hold outdoor assembly at 8am tomorrow?"}'
-# -> "No - hold outdoor assembly at ABC Public School is not allowed (predicted AQI ~210).
+  -d '{"question":"Should Mater Dei School hold outdoor assembly at 8am tomorrow?"}'
+# -> "No - hold outdoor assembly at Mater Dei School is not allowed (predicted AQI ~300).
 #     Alert sent to school admin via SNS."
 ```
 

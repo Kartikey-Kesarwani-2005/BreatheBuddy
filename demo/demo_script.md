@@ -24,7 +24,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 ## 0:25 - 1:10 · What it does - hyperlocal nowcast + school card
 
 **On screen:** hover the 500 m grid; click **Run 15-min cycle**; open
-**ABC Public School** in the "Today at your school" card.
+**Mater Dei School** in the "Today at your school" card.
 
 > "This is a 500-metre hyperlocal grid - not one city number, but street-level air,
 > with a 6-hour nowcast per cell. Ingest runs every 15 minutes. Drag the **forecast
@@ -33,7 +33,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 > **terrain** - switch any time; the dark style is cached so it even works offline.
 > Notice the banner: a **stubble-burning spike** - the model adds a
 > wind-driven smoke plume to every cell downwind, so the whole north-west lights up.
-> Now look at ABC Public School: AQI 218, **poor**. The card tells the admin exactly
+> Now look at Mater Dei School: AQI ~280, **poor**. The card tells the admin exactly
 > what Cedar allows - outdoor assembly and PE are **blocked**, classes move indoors -
 > and the **indoor air advisory** estimates indoor AQI and says keep windows shut and
 > run purifiers. At AQI 300-plus it would close the school and switch to remote
@@ -56,7 +56,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 ## 1:45 - 2:15 · Vulnerable alerts + the agent
 
 **On screen:** submit the **Subscribe** form; point at the new alert; then
-**Ask agent** with "Should ABC School hold outdoor assembly at 8am tomorrow?"
+**Ask agent** with "Should Mater Dei School hold outdoor assembly at 8am tomorrow?"
 
 > "Riders and asthma patients subscribe with their own threshold and location.
 > The moment local AQI crosses it, BreatheBuddy fires an alert - here to the local
@@ -101,7 +101,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
   template, stubble plume, Strands SDK, SQS buffer, JWT auth, OpenAQ adapter, no
   out-of-list AWS services).
 - `python run.py --demo` → all five acceptance criteria printed.
-- `python -m unittest discover -s tests -t .` → **52 tests pass** (CI runs these).
+- `python -m unittest discover -s tests -t .` → **56 tests pass** (CI runs these).
 
 ---
 
@@ -122,7 +122,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 | 0:00 | Map, pan slowly over red hotspots | Problem + who it's for |
 | 0:25 | Click **Run 15-min cycle**, wait for map refresh | "every 15 minutes…" |
 | 0:35 | Point at **stubble-burning banner** (top-right of map) | wind-driven plume raises downwind AQI |
-| 0:45 | Click **ABC Public School**, read card + indoor advisory aloud | AQI 218, assembly/PE blocked, Cedar |
+| 0:45 | Click **Mater Dei School**, read card + indoor advisory aloud | AQI ~280, assembly/PE blocked, Cedar |
 | 0:55 | Point at "Allowed" vs "Blocked by Cedar" chips | "policy, not opinion" |
 | 1:10 | Click **Compare routes** | fastest vs cleanest, a few AQI saved |
 | 1:25 | Point at blue dashed vs green line + stats box | clean-index |

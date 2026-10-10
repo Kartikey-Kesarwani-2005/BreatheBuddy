@@ -19,7 +19,7 @@ python run.py          # open http://localhost:8000
 1. **Dashboard** - the landing view, after clicking "Run 15-min cycle".
 2. **Forecast slider** - drag the time-slider to a later hour; the map recolours.
 3. **Route compare** - click "Compare routes", or use "Pick on map" / "Near me".
-4. **School + agent** - pick a school, and ask the agent a question (e.g. "Should ABC
+4. **School + agent** - pick a school, and ask the agent a question (e.g. "Should Mater Dei
    School hold outdoor assembly at 8am tomorrow?").
 
 Capture each view at ~1400x900 and overwrite the matching file above. Keep each
