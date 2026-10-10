@@ -1,14 +1,15 @@
-"""In-memory store with optional AWS persistence (S3 / DynamoDB via boto3).
+"""Shared in-memory state for the whole app.
 
-The store is the single source of truth for the app. By default it lives in
-memory and appends alerts to a local JSON "outbox" so the demo works offline.
-When ``config.USE_AWS`` is true and boto3 + endpoints are configured, the same
-calls also mirror reads/writes to DynamoDB / S3 (LocalStack or real AWS).
+Everything the pipeline produces hangs off this one object. On a laptop it stays
+purely in memory, plus a small JSON outbox so alerts survive a restart. When
+``USE_AWS`` is on, the same method calls also mirror out to S3 and DynamoDB
+through the bridge -- callers don't change either way.
 """
 from __future__ import annotations
 
 import json
 import threading
+import time
 from typing import Any
 
 from . import config
@@ -23,6 +24,8 @@ class Store:
         self.grid: dict[str, Any] = {}
         self.subscribers: dict[str, dict[str, Any]] = {}
         self.alerts: list[Alert] = []
+        self.buffer: list[dict[str, Any]] = []      # SQS-style delivery buffer
+        self._last_alert: dict[str, float] = {}  # (target:kind) -> epoch seconds
         self.aws = None  # lazily attached AWS bridge
 
     # -- bootstrap --------------------------------------------------------
@@ -102,6 +105,37 @@ class Store:
     def recent_alerts(self, limit: int = 50) -> list[Alert]:
         with self._lock:
             return self.alerts[-limit:][::-1]
+
+    # -- SQS-style delivery buffer ----------------------------------------
+    def buffer_message(self, message: dict[str, Any]) -> dict[str, Any]:
+        """Append a delivery to the buffer and mirror it to SQS when on AWS."""
+        with self._lock:
+            self.buffer.append(message)
+            self.buffer = self.buffer[-500:]
+            if self.aws:
+                return self.aws.send_to_queue(message)
+            return {"queued": False, "channel": "local-buffer"}
+
+    def drain_buffer(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Pop up to ``limit`` buffered messages (used by the buffer Lambda)."""
+        with self._lock:
+            out, self.buffer = self.buffer[:limit], self.buffer[limit:]
+            return out
+
+    # -- alert throttling -------------------------------------------------
+    def alert_age_s(self, key: str) -> float:
+        """Seconds since the last alert for ``key`` (large if never sent)."""
+        with self._lock:
+            last = self._last_alert.get(key)
+        return float("inf") if last is None else time.time() - last
+
+    def mark_alert(self, key: str) -> None:
+        with self._lock:
+            self._last_alert[key] = time.time()
+
+    def reset_alert_state(self) -> None:
+        with self._lock:
+            self._last_alert.clear()
 
 
 STORE = Store()

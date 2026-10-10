@@ -15,6 +15,11 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * EARTH_R * math.asin(min(1.0, math.sqrt(a)))
 
 
+def valid_latlon(lat: float, lon: float) -> bool:
+    """True when ``lat``/``lon`` are within valid geographic bounds."""
+    return -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0
+
+
 def meters_per_deg_lat() -> float:
     return 111_320.0
 

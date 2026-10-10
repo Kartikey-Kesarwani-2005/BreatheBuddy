@@ -35,10 +35,6 @@ _CLAUSE_RE = re.compile(
     r'context\.(\w+)\s*(<=|>=|==|<|>)\s*("?[\w.]+"?)')
 
 
-def _as_number(v: str) -> float:
-    return float(v)
-
-
 def _parse_value(raw: str) -> Any:
     raw = raw.strip()
     if raw in ("true", "false"):
@@ -98,11 +94,11 @@ class BuiltinCedar:
         return {"allowed": allowed, "reason": reason, "engine": "builtin-cedar"}
 
 
-def _load_policy(policy_ref: str) -> tuple[str, dict]:
+def _load_policy(policy_ref: str) -> str:
     path = config.POLICY_DIR / policy_ref
     if not path.exists():
         path = config.POLICY_DIR / "school_rules.cedar"
-    return path.read_text("utf-8"), {}
+    return path.read_text("utf-8")
 
 
 def _cedarpy():
@@ -114,8 +110,7 @@ def _cedarpy():
 
 
 def load_engine(policy_ref: str = "school_rules.cedar"):
-    text, _ = _load_policy(policy_ref)
-    return BuiltinCedar(text)
+    return BuiltinCedar(_load_policy(policy_ref))
 
 
 def _normalize_context(context: dict) -> dict:
@@ -140,7 +135,7 @@ def evaluate(activity: str, context: dict, policy_ref: str = "school_rules.cedar
     cp = _cedarpy()
     if cp is not None:
         try:
-            text, _ = _load_policy(policy_ref)
+            text = _load_policy(policy_ref)
             request = {
                 "principal": {"type": "User", "id": "school_staff"},
                 "action": {"type": "Action", "id": activity},

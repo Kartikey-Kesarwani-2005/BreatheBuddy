@@ -61,9 +61,13 @@ def school_alert(school: School, store: Store | None = None) -> Alert | None:
 def check_school(school: School, store: Store | None = None) -> Alert | None:
     store = store or STORE
     alert = school_alert(school, store)
-    if alert:
-        publish(alert, store)
-        log.info("school alert: %s", alert.message)
+    if not alert:
+        return None
+    info = publish(alert, store)
+    if info.get("suppressed"):
+        log.debug("school alert suppressed (cooldown): %s", alert.message)
+        return None
+    log.info("school alert: %s", alert.message)
     return alert
 
 
@@ -79,19 +83,28 @@ def check_subscribers(store: Store | None = None) -> list[Alert]:
         thr = float(sub.get("threshold_aqi", config.DEFAULT_THRESHOLD_AQI))
         if nc["aqi_now"] >= thr:
             kind = sub.get("kind", "vulnerable_individual")
+            peak = max(nc["aqi_forecast"]) if nc["aqi_forecast"] else nc["aqi_now"]
             msg = (f"BreatheBuddy: AQI {nc['aqi_now']} near you crosses your alert "
                    f"threshold {int(thr)}. Wear an N95, avoid outdoor exertion. "
-                   f"Next 6h: {nc['aqi_forecast']}.")
+                   f"Peak next 6h: {round(peak, 1)}.")
             alert = Alert.create(target=sub["subscriber_id"], kind=kind,
                                  aqi=nc["aqi_now"], message=msg)
-            publish(alert, store)
+            if publish(alert, store).get("suppressed"):
+                continue
             fired.append(alert)
     return fired
 
 
 def publish(alert: Alert, store: Store | None = None) -> dict:
     store = store or STORE
+    key = f"{alert.target}:{alert.kind}"
+    if store.alert_age_s(key) < config.ALERT_COOLDOWN_MIN * 60:
+        return {"delivered": False, "channel": "suppressed", "suppressed": True}
+    store.mark_alert(key)
     store.add_alert(alert)
+    # Buffer the delivery (SQS on AWS, local list offline) for downstream consumers.
+    store.buffer_message({"type": "alert", **alert.to_dict()})
     if store.aws is not None:
+        store.aws.put_metric("AlertPublished", 1)
         return store.aws.publish_alert(alert)
     return {"delivered": True, "channel": "mock-outbox"}

@@ -66,6 +66,10 @@ def run_cycle() -> dict:
     school_alerts = [a for s in STORE.schools.values()
                      if (a := alerting.check_school(s, STORE))]
     sub_alerts = alerting.check_subscribers(STORE)
+    if STORE.aws is not None:
+        STORE.aws.put_metric("GridCells", len(cells))
+        STORE.aws.put_metric("ReadingsIngested", ing["ingested"])
+        STORE.aws.put_metric("AlertsPublished", len(school_alerts) + len(sub_alerts))
     return {
         "cycle_at": now_iso(),
         "ingest": ing,
@@ -136,11 +140,11 @@ def school_today(school_id: str) -> dict | None:
     decision = decide_activities(sc["context"], school.rules_ref)
     status = aqi_category(sc["aqi_now"])
     if "close_school" in decision["allowed"]:
-        headline = f"School closed for outdoor & in-person activity — AQI {sc['aqi_now']}."
+        headline = f"School closed for outdoor & in-person activity - AQI {sc['aqi_now']}."
     elif "hold_outdoor_assembly" in decision["blocked"]:
-        headline = f"Outdoor assembly cancelled today — AQI {sc['aqi_now']} ({status})."
+        headline = f"Outdoor assembly cancelled today - AQI {sc['aqi_now']} ({status})."
     else:
-        headline = f"Normal schedule — AQI {sc['aqi_now']} ({status})."
+        headline = f"Normal schedule - AQI {sc['aqi_now']} ({status})."
     return {
         "school": school.to_dict(),
         "aqi_now": sc["aqi_now"],
@@ -159,16 +163,31 @@ def school_today(school_id: str) -> dict | None:
     }
 
 
+def _num(value, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, value))
+
+
 def subscribe(payload: dict) -> dict:
     bootstrap()
     sid = "sub_" + uuid.uuid4().hex[:8]
+    lat = _clamp(_num(payload.get("lat"), config.CENTER_LAT), -90.0, 90.0)
+    lon = _clamp(_num(payload.get("lon"), config.CENTER_LON), -180.0, 180.0)
+    threshold = int(round(_clamp(
+        _num(payload.get("threshold_aqi"), config.DEFAULT_THRESHOLD_AQI), 0, 500)))
     sub = {
         "subscriber_id": sid,
-        "name": payload.get("name", "Anonymous"),
-        "lat": float(payload.get("lat", config.CENTER_LAT)),
-        "lon": float(payload.get("lon", config.CENTER_LON)),
+        "name": str(payload.get("name") or "Anonymous")[:80],
+        "lat": lat,
+        "lon": lon,
         "kind": payload.get("kind", "vulnerable_individual"),
-        "threshold_aqi": float(payload.get("threshold_aqi", config.DEFAULT_THRESHOLD_AQI)),
+        "threshold_aqi": threshold,
         "phone": payload.get("phone", ""),
         "email": payload.get("email", ""),
         "channel": payload.get("channel", "sms"),

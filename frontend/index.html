@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BreatheBuddy — Har saans, safe.</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <title>BreatheBuddy - Har saans, safe.</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css"
+    onerror="this.onerror=null;this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -15,90 +16,114 @@
       <span class="tag">Har saans, safe.</span>
     </div>
     <div class="header-actions">
-      <button id="btn-cycle" title="Run ingest → nowcast → policy → alert">Run 15-min cycle</button>
-      <button id="btn-auth" class="ghost">Sign in (Cognito)</button>
+      <button id="btn-lang" class="ghost" title="Switch language / भाषा बदलें">EN / हिं</button>
+      <button id="btn-cycle" title="Run ingest → nowcast → policy → alert"
+        data-i18n="run_cycle">Run 15-min cycle</button>
+      <button id="btn-auth" class="ghost" data-i18n="sign_in">Sign in (Cognito)</button>
     </div>
   </header>
 
   <div class="subhead">
-    <span class="for">For <b>school admins</b> &amp; <b>vulnerable commuters</b></span>
-    <span class="steps">
+    <span class="for" data-i18n-html="for_who">For <b>school admins</b> &amp; <b>vulnerable commuters</b></span>
+    <span class="steps" data-i18n-html="steps">
       <b>1</b> Run cycle
       <i>&rarr;</i> <b>2</b> Pick a school
       <i>&rarr;</i> <b>3</b> Compare routes
       <i>&rarr;</i> <b>4</b> Ask the agent
     </span>
-    <span class="air">500&nbsp;m hyperlocal AQI &middot; 6-hour nowcast &middot; Cedar school rules</span>
+    <span class="air" data-i18n="air_line">500&nbsp;m hyperlocal AQI &middot; 6-hour nowcast &middot; Cedar school rules</span>
   </div>
 
   <main>
     <aside class="panel left">
       <section class="card">
-        <h2>Today at your school</h2>
-        <select id="school-select"></select>
-        <div id="school-card" class="school-card">Loading…</div>
+        <h2 data-i18n="today_school">Today at your school</h2>
+        <select id="school-select" aria-label="Choose a school"></select>
+        <div id="school-card" class="school-card" role="status" aria-live="polite">Loading…</div>
       </section>
 
       <section class="card">
-        <h2>Vulnerable alerts</h2>
-        <div id="alerts" class="alerts">No alerts yet.</div>
+        <h2 data-i18n="vuln_alerts">Vulnerable alerts</h2>
+        <div id="alerts" class="alerts" role="status" aria-live="polite">No alerts yet.</div>
       </section>
     </aside>
 
     <section class="map-wrap">
-      <div id="map"></div>
+      <div id="map" aria-label="Hyperlocal air-quality map"></div>
+      <div class="timeline" title="Scrub the 6-hour hyperlocal forecast">
+        <label for="fc-slider" data-i18n="forecast">Forecast</label>
+        <input id="fc-slider" type="range" min="0" max="6" step="1" value="0"
+          aria-label="Forecast hour" />
+        <b id="fc-label" aria-live="polite">Now</b>
+      </div>
       <div class="route-bar">
         <div class="field">
-          <label>From (lat,lon)</label>
+          <label for="from" data-i18n="from_label">From (lat,lon)</label>
           <input id="from" value="28.6000,77.1000" />
         </div>
         <div class="field">
-          <label>To (lat,lon)</label>
+          <label for="to" data-i18n="to_label">To (lat,lon)</label>
           <input id="to" value="28.6000,77.3000" />
         </div>
-        <button id="btn-route">Compare routes</button>
+        <button id="btn-route" data-i18n="compare">Compare routes</button>
+        <button id="btn-pick" class="ghost" type="button"
+          title="Click the map to set start, then end" data-i18n="pick">Pick on map</button>
+        <button id="btn-nearme" class="ghost" type="button"
+          title="Start from my current location" data-i18n="near_me">Near me</button>
+        <button id="btn-clear" class="ghost" type="button" data-i18n="clear">Clear</button>
       </div>
-      <div id="route-result" class="route-result"></div>
-      <div id="event-banner" class="event-banner" style="display:none"></div>
-      <div class="legend" id="legend"></div>
+      <div id="route-result" class="route-result" role="status" aria-live="polite"></div>
+      <div id="event-banner" class="event-banner" style="display:none" role="status"></div>
+      <div class="legend" id="legend" aria-label="Air quality index colour scale"></div>
     </section>
 
     <aside class="panel right">
       <section class="card">
-        <h2>Ask BreatheBuddy</h2>
-        <p class="hint">Strands agent + Cedar policy</p>
-        <textarea id="question" rows="3">Should ABC School hold outdoor assembly at 8am tomorrow?</textarea>
-        <button id="btn-ask">Ask agent</button>
-        <div id="agent-out" class="agent-out"></div>
+        <h2 data-i18n="ask_title">Ask BreatheBuddy</h2>
+        <p class="hint" data-i18n="ask_hint">Strands agent + Cedar policy</p>
+        <textarea id="question" rows="3" aria-label="Your question"
+          >Should ABC School hold outdoor assembly at 8am tomorrow?</textarea>
+        <select id="engine" title="Agent engine" aria-label="Agent engine">
+          <option value="auto" data-i18n="eng_auto">Auto (Strands SDK if configured)</option>
+          <option value="strands">Strands SDK + Bedrock</option>
+          <option value="simple" data-i18n="eng_simple">Deterministic (offline)</option>
+        </select>
+        <button id="btn-ask" data-i18n="ask_btn">Ask agent</button>
+        <div id="agent-out" class="agent-out" role="status" aria-live="polite"></div>
       </section>
 
       <section class="card">
-        <h2>Subscribe (vulnerable)</h2>
+        <h2 data-i18n="sub_title">Subscribe (vulnerable)</h2>
         <form id="subscribe-form">
-          <input name="name" placeholder="Name" value="Ravi (asthma)" required />
-          <input name="phone" placeholder="Phone (+91…)" value="+91-90000-12345" />
-          <input name="email" type="email" placeholder="Email" />
+          <input name="name" placeholder="Name" aria-label="Name" data-i18n-ph="ph_name"
+            value="Ravi (asthma)" required />
+          <input name="phone" placeholder="Phone (+91…)" aria-label="Phone"
+            data-i18n-ph="ph_phone" value="+91-90000-12345" />
+          <input name="email" type="email" placeholder="Email" aria-label="Email"
+            data-i18n-ph="ph_email" />
           <div class="row">
-            <select name="kind">
-              <option value="rider">Rider</option>
-              <option value="asthma">Asthma patient</option>
-              <option value="child">School child</option>
-              <option value="elderly">Elderly</option>
+            <select name="kind" aria-label="Profile type">
+              <option value="rider" data-i18n="kind_rider">Rider</option>
+              <option value="asthma" data-i18n="kind_asthma">Asthma patient</option>
+              <option value="child" data-i18n="kind_child">School child</option>
+              <option value="elderly" data-i18n="kind_elderly">Elderly</option>
             </select>
-            <input name="threshold_aqi" type="number" value="150" title="Alert threshold AQI" />
+            <input name="threshold_aqi" type="number" value="150"
+              title="Alert threshold AQI" aria-label="Alert threshold AQI" />
           </div>
           <div class="row">
-            <input name="lat" value="28.646" title="lat" />
-            <input name="lon" value="77.310" title="lon" />
+            <input name="lat" value="28.646" title="lat" aria-label="Latitude" />
+            <input name="lon" value="77.310" title="lon" aria-label="Longitude" />
           </div>
-          <button type="submit">Subscribe</button>
+          <button type="submit" data-i18n="sub_btn">Subscribe</button>
         </form>
-        <div id="sub-out" class="agent-out"></div>
+        <div id="sub-out" class="agent-out" role="status" aria-live="polite"></div>
       </section>
     </aside>
   </main>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="vendor/leaflet/leaflet.js"
+    onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';document.head.appendChild(s);"></script>
   <script src="amplify-config.js"></script>
   <script src="app.js"></script>
 </body>

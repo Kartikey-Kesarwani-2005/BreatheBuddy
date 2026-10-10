@@ -1,6 +1,6 @@
 """Hyperlocal AQI nowcast on a ~500 m grid for the next N hours.
 
-Model (deliberately simple + explainable, no external ML needed):
+Model (small and explainable on purpose -- no external ML needed):
   aqi_now(cell)   = inverse-distance-weighted blend of nearby stations,
                     adjusted by local traffic and wind dispersion.
   forecast[h]     = aqi_now * diurnal(hour+h) * dispersion drift.
@@ -38,7 +38,6 @@ def _diurnal(hour: int) -> float:
 def _idw_aqi(lat: float, lon: float, readings: list[Reading],
              radius_m: float = 12000.0, power: float = 3.0) -> float:
     """Inverse-distance blend of station AQI (power=3 => localised hotspots)."""
-    from .geo import haversine_m
     num = den = 0.0
     nearest = None
     nearest_d = float("inf")
@@ -122,7 +121,6 @@ def nowcast_point(lat: float, lon: float, store: Store | None = None) -> dict:
     """Forecast for an arbitrary point: blend the 4 nearest grid cells."""
     store = store or STORE
     cells = store.get_grid() or build_grid(store)
-    from .geo import haversine_m
     ranked = sorted(cells.values(), key=lambda c: haversine_m(lat, lon, c.lat, c.lon))
     near = ranked[:4]
     weights = [1.0 / (haversine_m(lat, lon, c.lat, c.lon) ** 2 + 1.0) for c in near]
@@ -130,15 +128,33 @@ def nowcast_point(lat: float, lon: float, store: Store | None = None) -> dict:
     aqi_now = round(sum(w * c.aqi_now for w, c in zip(weights, near)) / wsum, 1)
     forecast = []
     for h in range(config.FORECAST_HOURS):
-        forecast.append(round(sum(w * c.aqi_forecast[h] for w, c in zip(weights, near)) / wsum, 1))
-    return {
+        pairs = [(w, c.aqi_forecast[h]) for c, w in zip(near, weights)
+                 if h < len(c.aqi_forecast)]
+        if pairs:
+            wh = sum(w for w, _ in pairs)
+            forecast.append(round(sum(w * v for w, v in pairs) / wh, 1))
+        else:
+            forecast.append(aqi_now)
+    result = {
         "lat": round(lat, 6),
         "lon": round(lon, 6),
         "aqi_now": aqi_now,
         "aqi_forecast": forecast,
         "clean_index": clean_index(aqi_now),
         "nearest_cell": near[0].cell_id,
+        "engine": "local",
     }
+    # Optional: delegate to a deployed SageMaker nowcast endpoint when configured.
+    if config.SAGEMAKER_ENDPOINT:
+        from .awsio import invoke_sagemaker
+        remote = invoke_sagemaker({"lat": lat, "lon": lon})
+        if remote and "aqi_now" in remote:
+            result["aqi_now"] = round(float(remote["aqi_now"]), 1)
+            result["aqi_forecast"] = [round(float(x), 1)
+                                      for x in remote.get("aqi_forecast", forecast)]
+            result["clean_index"] = clean_index(result["aqi_now"])
+            result["engine"] = "sagemaker"
+    return result
 
 
 if __name__ == "__main__":  # pragma: no cover

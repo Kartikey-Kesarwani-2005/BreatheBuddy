@@ -7,6 +7,8 @@ warns the most exposed people on time, enforces school bad-day rules, and sugges
 > Track: **Air — Help people breathe easier.** Sub-focus: **School safety on bad days**
 > (also covers AQI, pollution exposure, **stubble burning** and **indoor air**).
 > One-liner: predict → warn → act. Not just another AQI number.
+>
+> Built for **AWS Environmental Hacks** — *Bharat Builds Tour* by WeMakeDevs, Oct 8–11 2026.
 
 ## Track alignment & eligibility
 
@@ -38,12 +40,17 @@ be deployed on AWS.* BreatheBuddy satisfies **both**:
 
 | # | Feature | Where |
 |---|---------|-------|
-| 1 | Ingest AQI + weather + traffic (mock feed, every 15 min) | `ingest.py`, EventBridge schedule |
+| 1 | Ingest AQI + weather + traffic (**bundled mock** or **live OpenAQ v3**, every 15 min) | `ingest.py`, EventBridge schedule |
 | 2 | Hyperlocal nowcast on a **~500 m grid, next 6 h** | `nowcast.py` |
 | 3 | **Fastest vs cleanest** route with a clean-index score | `routing.py` |
 | 4 | Vulnerable-profile alerts on threshold crossing | `alerts.py`, SNS |
 | 5 | Policy-driven **school bad-day rules (Cedar)** | `policies/school_rules.cedar`, `policy.py` |
 | 6 | Dashboard: AQI map + route compare + "Today at your school" | `frontend/` |
+| 7 | **Forecast time-slider** (scrub the next 6 h on the map) | `frontend/app.js` |
+| 8 | **Map-click routing** (tap start & end to compare routes) | `frontend/app.js` |
+| 9 | **"Near me"** geolocation → local AQI + route start | `frontend/app.js` |
+| 10 | **Bilingual dashboard** (English ⇄ हिंदी), remembered per browser | `frontend/app.js` |
+| 11 | **OpenAPI 3.0 spec + offline `/docs`** and per-client **write rate limiting** (`429`) | `openapi.py`, `ratelimit.py` |
 
 ## Architecture
 
@@ -68,12 +75,20 @@ be deployed on AWS.* BreatheBuddy satisfies **both**:
                               │
               Lambda nowcast (SageMaker-swappable) ─► Lambda policy (Cedar)
                               │
-                    SQS (buffer) ─► SNS (SMS/email) ─► Cognito-auth users
+                    SQS buffer ─► Lambda buffer ─► S3 archive
                               │
-           API Gateway + Lambda ─► Amplify Hosting (+CloudFront/Route 53)
+                    SNS (SMS/email) ─► Cognito-auth users
                               │
-                        CloudWatch logs/metrics · OpenSearch geo index
+           API Gateway (+Cognito authorizer) ─► Lambda
+                              │
+           CloudFront + S3 + Route 53  (or Amplify Hosting) ─► dashboard
+                              │
+                    CloudWatch logs / metrics / alarm · OpenSearch geo index
 ```
+
+> **New to the repo?** Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the
+> code map and request lifecycle, then [`docs/DESIGN_NOTES.md`](docs/DESIGN_NOTES.md)
+> for *why* the non-obvious choices were made.
 
 ---
 
@@ -87,6 +102,9 @@ python run.py --demo     # or: run the CLI demo of all acceptance criteria
 ```
 
 Open the dashboard, click **Run 15-min cycle**, then **Compare routes** and **Ask agent**.
+The map works **fully offline** — Leaflet and the Delhi basemap tiles are vendored
+in `frontend/vendor/` (re-fetch/refresh tiles with `python scripts/fetch_tiles.py`);
+uncached areas fall back to the live tile server when online.
 
 ### Optional: real Cedar + Strands agent
 
@@ -94,16 +112,27 @@ Open the dashboard, click **Run 15-min cycle**, then **Compare routes** and **As
 pip install -r requirements.txt
 # Verified on Python 3.14. After install:
 #   - cedarpy runs the REAL Cedar engine on school_rules.cedar (engine="cedar").
-#   - Strands Agents SDK is available; set BB_USE_STRANDS=true + a model
-#     (Bedrock on AWS) to use the LLM agent instead of the deterministic fallback.
+#   - The Strands Agents SDK is used directly:
+#         Agent(model=BedrockModel(...), tools=[...], system_prompt=...)
+#     Enable it with a Bedrock model + credentials, e.g.:
+#         export BB_USE_STRANDS=true
+#         export BB_BEDROCK_API_KEY=...           # or AWS creds / AWS_PROFILE
+#         export BB_STRANDS_MODEL=global.anthropic.claude-sonnet-4-6  # optional
+#     Without credentials the agent degrades to the deterministic responder.
 ```
+
+The Ask card has an **engine** selector (Auto / Strands + Bedrock / Deterministic);
+`POST /agent` accepts `{"question": "...", "engine": "strands|simple|auto"}`.
 
 ### Tests
 
 ```bash
-python -m unittest discover -s tests -t . -v   # 16 unit tests
-python scripts/selfcheck.py                     # 42 end-to-end checks (policy, API, template)
+python -m unittest discover -s tests -t . -v   # 52 unit tests
+python scripts/selfcheck.py                     # 96 end-to-end checks (policy, API, Lambda, auth, data source, OpenAPI, template)
 ```
+
+CI runs all of the above (plus `cfn-lint` and `node --check`) on every push — see
+`.github/workflows/ci.yml`.
 
 ---
 
@@ -115,9 +144,17 @@ python scripts/selfcheck.py                     # 42 end-to-end checks (policy, 
 | GET | `/route?from=lat,lon&to=lat,lon[&mode=fastest\|cleanest]` | Fastest vs cleanest + clean-index + winner |
 | GET | `/school/{id}/today` | Alert card: allowed/blocked activities + indoor advisory + headline |
 | POST | `/subscribe` | Register a vulnerable user `{name, phone/email, lat, lon, threshold_aqi, kind}` |
-| POST | `/agent` | Ask the agent: `{"question": "..."}` |
-| GET | `/grid`, `/schools`, `/stations`, `/alerts`, `/events`, `/health` | Dashboard helpers |
+| POST | `/agent` | Ask the agent: `{"question": "...", "engine": "strands\|simple\|auto"}` |
+| GET | `/grid`, `/schools`, `/stations`, `/alerts`, `/events`, `/buffer`, `/health` | Dashboard helpers |
+| GET | `/openapi.json`, `/docs` | OpenAPI 3.0 spec + a dependency-free docs page |
 | POST | `/cycle` | Run ingest → nowcast → policy → alert once |
+
+Write endpoints (`/subscribe`, `/cycle`) require a Cognito bearer token when
+`BB_REQUIRE_AUTH=true`. Locally, a token is accepted on presence; when
+`BB_COGNITO_USER_POOL_ID` is set the JWT signature is **verified against the
+pool's JWKS** (`src/breathebuddy/auth.py`, needs `pip install PyJWT cryptography`),
+and on AWS the API Gateway Cognito authorizer validates it too. Writes are also
+rate-limited per client (`BB_WRITE_RATE_LIMIT_PER_MIN`, default 60 → `429`).
 
 **Example**
 
@@ -162,20 +199,29 @@ evaluator parses the same `.cedar` file when `cedarpy` is not installed.
 BreatheBuddy/
 ├── run.py                     # launcher: server or --demo
 ├── requirements.txt           # optional full-path deps
+├── pyproject.toml             # metadata + optional extras + ruff config
+├── LICENSE                    # MIT
+├── .github/workflows/ci.yml   # tests + self-check + cfn-lint + node --check
 ├── data/                      # mock stations + schools (+ alerts outbox)
 ├── src/breathebuddy/
 │   ├── config.py models.py geo.py
 │   ├── store.py ingest.py nowcast.py routing.py
+│   ├── auth.py                # Cognito JWT/JWKS verification
+│   ├── openapi.py ratelimit.py # API spec + docs page; write-endpoint limiter
 │   ├── policy.py + policies/school_rules.cedar
 │   ├── alerts.py agent.py awsio.py service.py api.py demo.py
-├── frontend/                  # Leaflet dashboard (Amplify Hosting)
+├── frontend/                  # Leaflet dashboard (Amplify Hosting), EN/HI toggle
 ├── infra/                     # SAM template + Lambda handlers + Step Functions
 │   ├── template.yaml  samconfig.toml
 │   ├── handler/app.py
 │   └── localstack/docker-compose.yml
-├── scripts/                   # LocalStack bootstrap + cycle
-├── tests/                     # stdlib unittest (15 tests)
-└── demo/demo_script.md        # 60–90s demo narration
+├── scripts/                   # fetch_tiles.py, selfcheck.py, LocalStack bootstrap + cycle
+├── tests/                     # stdlib unittest (52 tests)
+├── docs/ARCHITECTURE.md       # code map + request lifecycle (start here)
+├── docs/DESIGN_NOTES.md       # the "why" behind the non-obvious choices
+├── docs/BLOG.md               # AWS Builder Center blog draft (blog prize)
+├── docs/SUBMISSION.md         # paste-ready submission pack
+└── demo/demo_script.md        # 3-minute demo narration
 ```
 
 ---
@@ -193,7 +239,7 @@ sam deploy  -t infra/template.yaml --guided
 ```
 
 This creates (allowed services only): **S3, DynamoDB, SNS, SQS, Lambda, API Gateway,
-Step Functions, EventBridge, IAM, CloudWatch**.
+Step Functions, EventBridge, IAM, CloudWatch, Cognito, CloudFront, Route 53**.
 
 ### Go-live runbook
 
@@ -209,13 +255,22 @@ Step Functions, EventBridge, IAM, CloudWatch**.
    ```js
    apiBase: "https://<id>.execute-api.<region>.amazonaws.com/prod"
    ```
-4. **Amplify Hosting** — connect this repo; it reads `amplify.yml` and publishes `frontend/`.
-   You get a public `https://<branch>.<app>.amplifyapp.com` URL (Ship It).
-5. **(Optional) Cognito** — create a user pool + app client with hosted UI; paste the login URL
-   into `amplify-config.js` → `cognito.hostedUi`. The "Sign in (Cognito)" button then works.
-6. **(Optional) Route 53 / CloudFront** — put a custom domain in front of the Amplify domain.
-7. **(Optional) Email alerts** — redeploy with `AlertEmail=you@example.com` to subscribe it to the
+4. **Static hosting** — either **Amplify Hosting** (connect this repo; it reads `amplify.yml`
+   and publishes `frontend/` → `https://<branch>.<app>.amplifyapp.com`), **or** the bundled
+   **S3 + CloudFront + Route 53** stack:
+   ```bash
+   aws s3 sync frontend/ s3://<SiteBucketName> --delete   # from the SiteBucketName output
+   # optional custom domain: redeploy with DomainName=air.example.com HostedZoneId=<zone> \
+   #   CertificateArn=<us-east-1 ACM arn>
+   ```
+5. **Cognito auth (optional but wired)** — the template provisions a Cognito User Pool + client
+   (outputs `UserPoolId`, `UserPoolClientId`). Deploy with `RequireAuth=true` to require a bearer
+   token on `/subscribe` and `/cycle`; the API Gateway Cognito authorizer validates the JWT.
+6. **Email alerts (optional)** — redeploy with `AlertEmail=you@example.com` to subscribe it to the
    SNS topic and receive real alert emails.
+7. **SageMaker nowcast (optional)** — deploy a model endpoint and redeploy with
+   `SagemakerEndpoint=<name>`; `nowcast_point` then delegates to it (`engine="sagemaker"`),
+   falling back to the local model automatically.
 
 > Cost note: everything here is free-tier friendly (on-demand DynamoDB, Lambda/Step Functions
 > request-based, S3 storage). The mock feed keeps volumes tiny; tear down with
@@ -252,9 +307,9 @@ python scripts/localstack_cycle.py          # writes S3 object + DDB items + SNS
 | Criterion | BreatheBuddy |
 |-----------|--------------|
 | **01 Idea & impact** | One focused problem — *school safety on bad-air days* — solved well: not a vague "air quality app" but a specific rule engine that changes today's schedule for the people exposed (kids, riders, asthma patients). |
-| **02 Built on AWS** | Uses AWS **open source tools** (Strands Agents SDK, Cedar, OpenSearch; SAM CLI, LocalStack locally) **and** is deployable on AWS free tier (Lambda, DynamoDB, S3, SNS, SQS, Step Functions, API Gateway, EventBridge, Amplify). |
+| **02 Built on AWS** | Uses AWS **open source tools** (Strands Agents SDK, Cedar, OpenSearch; SAM CLI, LocalStack locally) **and** is deployable on AWS free tier (Lambda, DynamoDB, S3, SNS, SQS, Step Functions, API Gateway, EventBridge, CloudWatch, Cognito, CloudFront, Route 53, Amplify). |
 | **03 Design & usability** | One screen anyone can pick up: a guided 4-step strip ("Run cycle → pick a school → compare routes → ask the agent"), plain-language decision card ("Outdoor assembly cancelled"), color-coded AQI map, and a subscribe form for non-technical users. |
-| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 42/42, 16 unit tests, real Cedar engine active, live HTTP API + dashboard. |
+| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 96/96, 52 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification, live OpenAQ feed adapter (mock fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green. |
 | **05 Demo video** | **3-minute** script covering problem, who it's for, full walkthrough, and where AWS fits — `demo/demo_script.md`. |
 
 > Note from the rules: *there is no live demo — the video is what judges see*, and *local and
@@ -262,23 +317,49 @@ python scripts/localstack_cycle.py          # writes S3 object + DDB items + SNS
 
 ---
 
+## Team & submission (Environmental Hacks, Oct 2026)
+
+**Track:** Air · **Team:** codeN4PTDY (Dev X) — Kartikey Kesarwani (lead), Krishna Gupta,
+Varun Chakraborty, @antidoe.
+
+Submission checklist:
+
+- [x] Working project that runs locally with **zero installs** + AWS-deployable SAM template.
+- [x] Uses **AWS open source tools** (Strands Agents SDK, Cedar, OpenSearch, SAM CLI, LocalStack).
+- [x] 3-minute demo video script — [`demo/demo_script.md`](demo/demo_script.md).
+- [ ] Blog write-up on **AWS Builder Center** (draft: [`docs/BLOG.md`](docs/BLOG.md)) — link it in the submission.
+- [ ] Verify **student status on AWS Builder Center** (required to compete).
+- [ ] Record the video and paste the link in the submission.
+
+---
+
 ## AWS services used (all from the provided list)
 
 Build It (open source): **Strands Agents SDK**, **Cedar**, **OpenSearch**, **SAM CLI**, **LocalStack**.
-Ship It: **Lambda, API Gateway, Step Functions, EKS-ready/ECS-free design, S3, DynamoDB, SNS,
-SQS, EventBridge, CloudWatch, Amplify Hosting, Cognito, Route 53, CloudFront**.
+Ship It: **Lambda, API Gateway, Step Functions, S3, DynamoDB, SNS, SQS** (real producer +
+buffer Lambda consumer), **EventBridge, CloudWatch** (custom metrics + alarm + dashboard),
+**Cognito** (user pool + write-endpoint auth), **CloudFront + Route 53 + S3** static hosting,
+**Amplify Hosting**, **SageMaker** (optional nowcast endpoint).
 No other AWS service is referenced anywhere in the code or templates.
+
+> The remaining list items are **alternatives, not additions**: containers (Finch/EKS Distro/
+> EKS Anywhere/EKS/ECS/Fargate), servers (Firecracker/EC2/Lightsail/App Runner), the SQL stores
+> (RDS/Aurora), the Java runtime (Corretto) and the no-code builder (PartyRock). This project
+> deliberately picks the **serverless + open-source** path, so those are intentionally not used —
+> adding them all would be incoherent. Eligibility only requires **one** open-source tool or an
+> AWS deployment; BreatheBuddy has many.
 
 ## Configuration
 
 All settings are environment variables (see `.env.example`): grid size, forecast horizon,
-city centre, alert thresholds, and AWS endpoints/tables. Defaults target Delhi with a
-32×44 grid of 500 m cells (6-hour horizon).
+city centre, alert thresholds, data source (`BB_AQ_SOURCE=mock|openaq`), auth, and AWS
+endpoints/tables. Defaults target Delhi with a 32×44 grid of 500 m cells (6-hour horizon).
 
 ## Limitations (hackathon scope)
 
-- Ingest uses a bundled mock feed with deterministic 15-minute jitter; plug a real
-  OpenAQ/CPCB feed into `ingest.fetch_mock` without touching anything else.
+- Ingest defaults to the bundled mock feed with deterministic 15-minute jitter. Set
+  `BB_AQ_SOURCE=openaq` + `BB_OPENAQ_API_KEY` to pull **live** OpenAQ v3 readings (converted
+  to CPCB AQI); any live error falls back to mock, so the demo never breaks.
 - The nowcast is an explainable IDW + diurnal model; swap it for a SageMaker endpoint via
   `nowcast.build_grid` / `nowcast_point` (same interface).
 - Deployed Lambdas seed the demo dataset; a production build would read all readings from

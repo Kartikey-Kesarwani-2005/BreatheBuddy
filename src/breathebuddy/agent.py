@@ -2,8 +2,8 @@
 
 Uses the Strands Agents SDK when it is installed *and* a model is available
 (Bedrock on AWS, or a local model). Otherwise it falls back to a deterministic,
-rule-based responder that calls exactly the same tools, so the demo always
-produces a reasoned decision with zero cloud credentials.
+rule-based responder that calls exactly the same tools, so the agent still works
+with no cloud credentials.
 
 Tools exposed to the agent:
     get_aqi, predict_aqi, find_cleanest_route, check_school_policy, send_alert
@@ -11,7 +11,6 @@ Tools exposed to the agent:
 from __future__ import annotations
 
 import logging
-import re
 
 from . import alerts as alerting
 from . import config
@@ -134,7 +133,7 @@ class SimpleAgent:
                        f"Switch to indoor activities.")
                 send_alert(f"school:{school.school_id}", "agent_decision", predicted, msg)
                 action = "Alert sent to school admin via SNS."
-            answer = (f"{'Yes' if decision['allowed'] else 'No'} — {activity.replace('_', ' ')} "
+            answer = (f"{'Yes' if decision['allowed'] else 'No'}: {activity.replace('_', ' ')} "
                       f"at {school.name} is {'allowed' if decision['allowed'] else 'not allowed'} "
                       f"(predicted AQI {predicted}). {action}")
             return {"answer": answer, "steps": steps, "decision": decision,
@@ -147,34 +146,79 @@ class SimpleAgent:
 
         # default: report AQI at city centre
         info = get_aqi(28.6139, 77.2090)
-        return {"answer": f"Current AQI near {STORE.schools and 'city centre'}: "
+        return {"answer": f"Current AQI near city centre: "
                           f"{info['aqi_now']} ({info['category']}). "
                           f"6h forecast {info['aqi_forecast']}.",
                 "steps": ["Reported city-centre AQI."], "engine": self.engine}
 
 
 # --------------------------------------------------------------------------
-# Strands path (optional)
+# Strands path (optional): real Strands Agents SDK + Amazon Bedrock model
 # --------------------------------------------------------------------------
+SYSTEM_PROMPT = (
+    "You are BreatheBuddy, a hyperlocal air-quality agent for a city. Use the "
+    "available tools to check AQI, forecast, compare cleanest vs fastest routes, "
+    "and enforce school Cedar policies. When a policy denies an outdoor activity, "
+    "call send_alert. Always answer with a clear decision and the action taken."
+)
+
+_MODEL = None       # cached BedrockModel (holds the boto client)
+_TOOLS = None       # cached Strands-wrapped tool list
+
+
+def _strands_tools():
+    global _TOOLS
+    if _TOOLS is None:
+        from strands import tool as strands_tool
+        _TOOLS = [strands_tool(f) for f in TOOL_FUNCTIONS]
+    return _TOOLS
+
+
+def _bedrock_model():
+    """Build (and cache) the Bedrock model, configured from the environment."""
+    global _MODEL
+    if _MODEL is not None:
+        return _MODEL
+    from strands.models import BedrockModel
+    kwargs: dict = {"region_name": config.AWS_REGION}
+    if config.AWS_ENDPOINT:
+        kwargs["endpoint_url"] = config.AWS_ENDPOINT
+    if config.BEDROCK_API_KEY:
+        kwargs["api_key"] = config.BEDROCK_API_KEY
+    if config.STRANDS_MODEL_ID:
+        kwargs["model_id"] = config.STRANDS_MODEL_ID
+    _MODEL = BedrockModel(**kwargs)
+    log.info("Strands BedrockModel ready (model_id=%s, region=%s)",
+             _MODEL.config.get("model_id"), config.AWS_REGION)
+    return _MODEL
+
+
 def build_strands_agent():
-    """Return a Strands Agent wired with our tools, or None if unavailable."""
+    """Return a Strands ``Agent`` wired with our tools, or None if unavailable.
+
+    Uses the Strands Agents SDK directly: ``Agent(model=BedrockModel(...),
+    tools=[...], system_prompt=...)``.
+    """
     try:
         from strands import Agent
-        try:
-            from strands import tool as strands_tool
-        except Exception:  # pragma: no cover
-            strands_tool = None
-        tools = [strands_tool(f) for f in TOOL_FUNCTIONS] if strands_tool else TOOL_FUNCTIONS
-        system = (
-            "You are BreatheBuddy, a hyperlocal air-quality agent. Use the tools to check "
-            "AQI, forecast, compare clean vs fast routes, and enforce school Cedar policies. "
-            "When a policy denies an outdoor activity, call send_alert. Answer with a clear "
-            "decision and the action taken."
-        )
-        return Agent(tools=tools, system_prompt=system)
+        return Agent(model=_bedrock_model(), tools=_strands_tools(),
+                     system_prompt=SYSTEM_PROMPT)
     except Exception as exc:  # pragma: no cover - Strands/model optional
         log.info("Strands agent unavailable (%s); using SimpleAgent.", exc)
         return None
+
+
+def _strands_steps(result) -> list[str]:
+    """Extract tool-call steps from a Strands AgentResult for the UI."""
+    steps = []
+    try:
+        for item in (result.message or {}).get("content", []):
+            if isinstance(item, dict) and "toolUse" in item:
+                tu = item["toolUse"]
+                steps.append(f"Called {tu.get('name')}({tu.get('input')})")
+    except Exception:  # pragma: no cover
+        pass
+    return steps
 
 
 def get_agent(prefer_strands: bool | None = None):
@@ -189,14 +233,16 @@ def get_agent(prefer_strands: bool | None = None):
 
 
 def ask(question: str, prefer_strands: bool | None = None) -> dict:
-    agent = get_agent(prefer_strands=prefer_strands)
-    if isinstance(agent, SimpleAgent):
-        return agent.ask(question)
-    # Strands agent: normalise to our result shape; fall back if the model call
-    # fails (e.g. no Bedrock credentials in the local demo).
-    try:
-        text = str(agent(question))
-        return {"answer": text, "steps": [], "engine": "strands"}
-    except Exception as exc:  # pragma: no cover - depends on model/creds
-        log.warning("Strands invocation failed (%s); using SimpleAgent.", exc)
-        return SimpleAgent().ask(question)
+    if prefer_strands is None:
+        prefer_strands = config.USE_STRANDS
+    if prefer_strands:
+        agent = build_strands_agent()
+        if agent is not None:
+            try:
+                result = agent(question)
+                text = str(result).strip()
+                return {"answer": text or "(no answer)", "steps": _strands_steps(result),
+                        "engine": "strands"}
+            except Exception as exc:  # pragma: no cover - depends on model/creds
+                log.warning("Strands invocation failed (%s); using SimpleAgent.", exc)
+    return SimpleAgent().ask(question)

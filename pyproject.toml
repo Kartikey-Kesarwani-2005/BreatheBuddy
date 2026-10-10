@@ -1,0 +1,62 @@
+# BreatheBuddy — project metadata + tooling config.
+#
+# The runtime itself is stdlib-only (no install needed):  python run.py
+# These extras only light up the optional AWS / agent / policy paths.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "breathebuddy"
+version = "0.1.0"
+description = "Hyperlocal AQI nowcast, clean-route planner and Cedar school-safety rules."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "BreatheBuddy contributors" }]
+keywords = ["air-quality", "aqi", "nowcast", "strands-agents", "cedar", "aws", "hackathon"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+# No runtime dependencies: the local demo runs on the Python standard library.
+dependencies = []
+
+[project.optional-dependencies]
+aws = ["boto3>=1.34.0"]
+agent = ["strands-agents>=0.1.0"]
+policy = ["cedarpy>=4.0.0"]
+search = ["opensearch-py>=2.4.0"]
+auth = ["PyJWT>=2.8.0", "cryptography>=41.0.0"]
+dev = ["cfn-lint>=0.86.0", "PyYAML>=6.0", "PyJWT>=2.8.0", "cryptography>=41.0.0"]
+all = [
+  "boto3>=1.34.0",
+  "strands-agents>=0.1.0",
+  "cedarpy>=4.0.0",
+  "opensearch-py>=2.4.0",
+  "PyJWT>=2.8.0",
+  "cryptography>=41.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/anomalyco/opencode"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "infra", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = ["E501"]

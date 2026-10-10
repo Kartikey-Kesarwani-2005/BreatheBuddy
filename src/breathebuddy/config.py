@@ -41,7 +41,15 @@ FORECAST_HOURS = _i("BB_FORECAST_HOURS", 6)
 # --- Networking ----------------------------------------------------------
 HOST = os.getenv("BB_HOST", "127.0.0.1")
 PORT = _i("BB_PORT", 8000)
-API_BASE_URL = os.getenv("BB_API_BASE", f"http://{HOST}:{PORT}")
+
+# --- Air-quality data source ---------------------------------------------
+# "mock" = bundled feed (offline, deterministic). "openaq" = live OpenAQ v3 API
+# (needs BB_OPENAQ_API_KEY). Any live-feed error falls back to mock so a bad
+# network doesn't take down the demo.
+AQ_SOURCE = os.getenv("BB_AQ_SOURCE", "mock")
+OPENAQ_API_KEY = os.getenv("BB_OPENAQ_API_KEY", "")
+OPENAQ_BASE = os.getenv("BB_OPENAQ_BASE", "https://api.openaq.org/v3")
+OPENAQ_RADIUS_M = _i("BB_OPENAQ_RADIUS_M", 25000)
 
 # --- AWS integration flags ----------------------------------------------
 # When USE_AWS is on, boto3 is used to talk to LocalStack or real AWS.
@@ -49,6 +57,11 @@ USE_AWS = _b("BB_USE_AWS", False)
 # Use the LLM-backed Strands agent when true. Left off locally so the demo runs
 # offline and instantly; on AWS (with Bedrock/credentials) set BB_USE_STRANDS=true.
 USE_STRANDS = _b("BB_USE_STRANDS", False)
+# Strands Agents SDK + Amazon Bedrock model config (used when USE_STRANDS is on).
+# Model id is optional; when blank the SDK picks a region-appropriate default.
+STRANDS_MODEL_ID = os.getenv("BB_STRANDS_MODEL", "")
+# Bedrock API key (bearer token) works without AWS SigV4 credentials.
+BEDROCK_API_KEY = os.getenv("BB_BEDROCK_API_KEY") or os.getenv("AWS_BEARER_TOKEN_BEDROCK", "")
 # Stubble-burning plume (seasonal). Turn off to see the clean baseline.
 USE_STUBBLE = _b("BB_STUBBLE_BURNING", True)
 AWS_ENDPOINT = os.getenv("AWS_ENDPOINT_URL", "")     # e.g. http://localhost:4566
@@ -61,7 +74,27 @@ DDB_ALERTS_TABLE = os.getenv("BB_DDB_ALERTS_TABLE", "breathebuddy-alerts")
 DDB_SUBSCRIBERS_TABLE = os.getenv("BB_DDB_SUBSCRIBERS_TABLE", "breathebuddy-subscribers")
 OPENSEARCH_ENDPOINT = os.getenv("BB_OPENSEARCH_ENDPOINT", "")
 OPENSEARCH_INDEX = os.getenv("BB_OPENSEARCH_INDEX", "aqi-grid")
+# Optional SageMaker endpoint for the nowcast model (blank = local model).
+SAGEMAKER_ENDPOINT = os.getenv("BB_SAGEMAKER_ENDPOINT", "")
+# CloudWatch custom-metric namespace.
+METRICS_NAMESPACE = os.getenv("BB_METRICS_NAMESPACE", "BreatheBuddy")
+
+# --- Auth (Amazon Cognito) ------------------------------------------------
+# When REQUIRE_AUTH is on, write endpoints (/subscribe, /cycle) demand a bearer
+# token. Locally any non-empty token is accepted; on AWS the API Gateway Cognito
+# authorizer validates the JWT signature against the user pool.
+COGNITO_USER_POOL_ID = os.getenv("BB_COGNITO_USER_POOL_ID", "")
+COGNITO_CLIENT_ID = os.getenv("BB_COGNITO_CLIENT_ID", "")
+# Override the derived issuer / JWKS URL (useful for tests or non-Cognito IdPs).
+COGNITO_ISSUER = os.getenv("BB_COGNITO_ISSUER", "")
+COGNITO_JWKS_URL = os.getenv("BB_COGNITO_JWKS_URL", "")
+REQUIRE_AUTH = _b("BB_REQUIRE_AUTH", False)
 
 # --- Alert thresholds (default vulnerable profile) -----------------------
 DEFAULT_THRESHOLD_AQI = _i("BB_DEFAULT_THRESHOLD_AQI", 150)
-SCHOOL_ALERT_AQI = _i("BB_SCHOOL_ALERT_AQI", 150)
+# Do not re-send the same (target, kind) alert more often than this.
+ALERT_COOLDOWN_MIN = _i("BB_ALERT_COOLDOWN_MIN", 60)
+
+# --- API safety ----------------------------------------------------------
+# Max write requests (/subscribe, /cycle) per client per minute. 0 disables.
+WRITE_RATE_LIMIT_PER_MIN = _i("BB_WRITE_RATE_LIMIT_PER_MIN", 60)

@@ -13,7 +13,7 @@ from typing import Callable
 from . import config
 from .geo import haversine_m
 from .models import GridCell, RouteResult
-from .nowcast import build_grid, clean_index, nowcast_point
+from .nowcast import build_grid, clean_index
 from .store import STORE, Store
 
 SPEED_KMH = 28.0
@@ -123,13 +123,3 @@ def find_routes(from_ll: tuple[float, float], to_ll: tuple[float, float],
         "note": (f"Cleanest route cuts average exposure by {saved} AQI points."
                  if saved > 0 else "Routes have similar exposure on the current grid."),
     }
-
-
-def route_for_mode(mode: str, from_ll: tuple[float, float],
-                   to_ll: tuple[float, float], store: Store | None = None) -> dict:
-    res = find_routes(from_ll, to_ll, store)
-    return res.get(mode, res["cleanest"])
-
-
-def point_exposure(lat: float, lon: float, store: Store | None = None) -> dict:
-    return nowcast_point(lat, lon, store)

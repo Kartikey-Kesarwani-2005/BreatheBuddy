@@ -16,9 +16,32 @@ Parameters:
   City:
     Type: String
     Default: Delhi
+  RequireAuth:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Require a Cognito bearer token on write endpoints (/subscribe, /cycle).
+  SagemakerEndpoint:
+    Type: String
+    Default: ""
+    Description: Optional deployed SageMaker endpoint name for the nowcast model.
+  DomainName:
+    Type: String
+    Default: ""
+    Description: Optional custom domain for CloudFront + Route 53 (e.g. air.example.com).
+  HostedZoneId:
+    Type: String
+    Default: ""
+    Description: Optional Route 53 hosted zone id matching DomainName.
+  CertificateArn:
+    Type: String
+    Default: ""
+    AllowedPattern: "^(|arn:aws[a-zA-Z-]*:acm:[a-z0-9-]+:[0-9]{12}:certificate/.+)$"
+    Description: Optional ACM certificate ARN (us-east-1) for the CloudFront alias.
 
 Conditions:
   HasAlertEmail: !Not [!Equals [!Ref AlertEmail, ""]]
+  HasDomain: !And [!Not [!Equals [!Ref DomainName, ""]], !Not [!Equals [!Ref HostedZoneId, ""]]]
 
 Globals:
   Function:
@@ -35,6 +58,10 @@ Globals:
         BB_DDB_SUBSCRIBERS_TABLE: !Ref SubscribersTable
         BB_SNS_TOPIC_ARN: !Ref AlertsTopic
         BB_SQS_QUEUE_URL: !Ref BufferQueue
+        BB_COGNITO_USER_POOL_ID: !Ref UserPool
+        BB_COGNITO_CLIENT_ID: !Ref UserPoolClient
+        BB_REQUIRE_AUTH: !Ref RequireAuth
+        BB_SAGEMAKER_ENDPOINT: !Ref SagemakerEndpoint
 
 Resources:
   # ------------------------------------------------------------------ data
@@ -129,8 +156,15 @@ Resources:
                 Action: [sns:Publish]
                 Resource: !Ref AlertsTopic
               - Effect: Allow
-                Action: [sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage]
+                Action: [sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage,
+                         sqs:GetQueueAttributes]
                 Resource: !GetAtt BufferQueue.Arn
+              - Effect: Allow
+                Action: [cloudwatch:PutMetricData]
+                Resource: "*"
+              - Effect: Allow
+                Action: [sagemaker:InvokeEndpoint]
+                Resource: !Sub "arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/*"
 
   StepFunctionsRole:
     Type: AWS::IAM::Role
@@ -178,6 +212,19 @@ Resources:
       CodeUri: ../
       Handler: infra.handler.app.lambda_alert
       Role: !GetAtt LambdaRole.Arn
+
+  BufferFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../
+      Handler: infra.handler.app.lambda_buffer
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        BufferQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt BufferQueue.Arn
+            BatchSize: 10
 
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -236,6 +283,122 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt FifteenMinuteRule.Arn
 
+  # ------------------------------------------------------- observability
+  ApiErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: breathebuddy-api-errors
+      AlarmDescription: API Lambda errors in the last 5 minutes
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref ApiFunction }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  PipelineDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: breathebuddy
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {"type":"metric","x":0,"y":0,"width":12,"height":6,
+             "properties":{"title":"API errors",
+               "metrics":[["AWS/Lambda","Errors","FunctionName","${ApiFunction}"]]}},
+            {"type":"metric","x":12,"y":0,"width":12,"height":6,
+             "properties":{"title":"BreatheBuddy alerts published",
+               "metrics":[["BreatheBuddy","AlertPublished"]]}}
+          ]
+        }
+
+  # --------------------------------------------------------------- auth
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: breathebuddy-users
+      AutoVerifiedAttributes: [email]
+      UsernameAttributes: [email]
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: breathebuddy-web
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows: [ALLOW_USER_SRP_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+
+  # --------------------------------- hosting (S3 + CloudFront + Route 53)
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "breathebuddy-site-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  SiteOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: breathebuddy-site
+
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              CanonicalUser: !GetAtt SiteOriginAccessIdentity.S3CanonicalUserId
+            Action: s3:GetObject
+            Resource: !Sub "${SiteBucket.Arn}/*"
+
+  SiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Aliases: !If [HasDomain, [!Ref DomainName], !Ref "AWS::NoValue"]
+        Origins:
+          - Id: site
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${SiteOriginAccessIdentity}"
+        DefaultCacheBehavior:
+          TargetOriginId: site
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          ForwardedValues:
+            QueryString: false
+            Cookies: { Forward: none }
+        ViewerCertificate: !If
+          - HasDomain
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+          - CloudFrontDefaultCertificate: true
+
+  SiteDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt SiteDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint
@@ -246,3 +409,12 @@ Outputs:
     Value: !Ref BreatheBuddyStateMachine
   RawBucket:
     Value: !Ref IngestionBucket
+  SiteUrl:
+    Description: CloudFront URL of the dashboard (sync frontend/ to SiteBucket)
+    Value: !Sub "https://${SiteDistribution.DomainName}"
+  SiteBucketName:
+    Value: !Ref SiteBucket
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient

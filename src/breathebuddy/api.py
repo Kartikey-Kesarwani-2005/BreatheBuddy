@@ -19,6 +19,10 @@ from urllib.parse import parse_qs, urlparse
 
 from . import config
 from . import agent as agent_mod
+from . import auth
+from . import openapi
+from .geo import valid_latlon
+from .ratelimit import WRITE_LIMITER
 from .service import (aqi_query, bootstrap, environmental_events, route_query,
                       run_cycle, school_today, subscribe)
 from .store import STORE
@@ -27,7 +31,8 @@ log = logging.getLogger("breathebuddy.api")
 
 CONTENT_TYPES = {".html": "text/html", ".js": "application/javascript",
                  ".css": "text/css", ".json": "application/json",
-                 ".svg": "image/svg+xml", ".ico": "image/x-icon"}
+                 ".svg": "image/svg+xml", ".png": "image/png",
+                 ".jpg": "image/jpeg", ".ico": "image/x-icon", ".map": "application/json"}
 
 
 def _coord(value: str) -> tuple[float, float]:
@@ -57,6 +62,15 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _bytes(self, body: bytes, content_type: str, status: int = 200):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, max-age=86400")
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
+
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -79,7 +93,10 @@ class Handler(BaseHTTPRequestHandler):
         if not target.exists() or target.is_dir():
             return self._send({"error": "not found", "path": path}, 404)
         ctype = CONTENT_TYPES.get(target.suffix, "application/octet-stream")
-        self._text(target.read_text("utf-8", errors="replace"), ctype)
+        if target.suffix in (".html", ".js", ".css"):
+            self._text(target.read_text("utf-8", errors="replace"), ctype)
+        else:
+            self._bytes(target.read_bytes(), ctype)
 
     # -- verbs ------------------------------------------------------------
     def do_OPTIONS(self):  # noqa: N802
@@ -106,8 +123,14 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         path, q = u.path, parse_qs(u.query)
 
-        if path == "/health":
+        if path in ("/health", "/api/health"):
             return self._send({"ok": True, "city": config.CITY_NAME})
+
+        if path in ("/openapi.json", "/api/openapi.json"):
+            return self._send(openapi.SPEC)
+
+        if path in ("/docs", "/api/docs"):
+            return self._text(openapi.render_docs_html(), "text/html")
 
         if path in ("/aqi", "/api/aqi"):
             try:
@@ -115,6 +138,8 @@ class Handler(BaseHTTPRequestHandler):
                 lon = float(q.get("lon", [config.CENTER_LON])[0])
             except (ValueError, TypeError):
                 return self._send({"error": "lat and lon must be numbers"}, 400)
+            if not valid_latlon(lat, lon):
+                return self._send({"error": "lat must be -90..90 and lon -180..180"}, 400)
             return self._send(aqi_query(lat, lon))
 
         if path in ("/route", "/api/route"):
@@ -129,6 +154,8 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, TypeError, KeyError, IndexError):
                 return self._send(
                     {"error": "provide from=lat,lon&to=lat,lon"}, 400)
+            if not (valid_latlon(*from_ll) and valid_latlon(*to_ll)):
+                return self._send({"error": "coordinates out of range"}, 400)
             res = route_query(from_ll, to_ll)
             mode = q.get("mode", [None])[0]
             if mode in ("fastest", "cleanest"):
@@ -156,21 +183,45 @@ class Handler(BaseHTTPRequestHandler):
             bootstrap()
             return self._send([a.to_dict() for a in STORE.recent_alerts()])
 
+        if path in ("/buffer", "/api/buffer"):
+            bootstrap()
+            return self._send({"buffered": STORE.buffer[-50:]})
+
         if path in ("/events", "/api/events"):
             return self._send(environmental_events())
 
         return self._static(path)
 
+    def _authorized(self) -> bool:
+        """Cognito gate for write endpoints (dev: presence; AWS: JWT)."""
+        return auth.authorized(dict(self.headers))
+
     def _route_post(self):
         path = urlparse(self.path).path
         body = self._json_body()
+
+        writes = ("/subscribe", "/api/subscribe", "/cycle", "/api/cycle")
+        if path in writes:
+            if not WRITE_LIMITER.allow(self.client_address[0]):
+                self.send_response(429)
+                self.send_header("Retry-After", str(WRITE_LIMITER.retry_after()))
+                self.send_header("Content-Type", "application/json")
+                self._cors()
+                self.end_headers()
+                self.wfile.write(json.dumps(
+                    {"error": "rate limit exceeded"}).encode("utf-8"))
+                return
+            if not self._authorized():
+                return self._send({"error": "unauthorized"}, 401)
 
         if path in ("/subscribe", "/api/subscribe"):
             return self._send(subscribe(body), 201)
 
         if path in ("/agent", "/api/agent"):
             question = body.get("question", "")
-            return self._send(agent_mod.ask(question))
+            engine = str(body.get("engine", "")).lower()
+            prefer = True if engine == "strands" else (False if engine == "simple" else None)
+            return self._send(agent_mod.ask(question, prefer_strands=prefer))
 
         if path in ("/cycle", "/api/cycle"):
             return self._send(run_cycle())

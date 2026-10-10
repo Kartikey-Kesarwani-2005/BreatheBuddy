@@ -27,25 +27,27 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 **ABC Public School** in the "Today at your school" card.
 
 > "This is a 500-metre hyperlocal grid — not one city number, but street-level air,
-> with a 6-hour nowcast per cell. Ingest runs every 15 minutes. Notice the banner:
-> a **stubble-burning spike** — the model adds a wind-driven smoke plume to every
-> cell downwind, so the whole north-west of the city lights up. Now look at
-> ABC Public School: AQI 218, **poor**. The card tells the admin exactly what Cedar
-> allows — outdoor assembly and PE are **blocked**, classes move indoors — and the
-> **indoor air advisory** estimates indoor AQI and says keep windows shut and run
-> purifiers. At AQI 300-plus it would close the school and switch to remote learning.
-> This is **policy, not opinion**."
+> with a 6-hour nowcast per cell. Ingest runs every 15 minutes. Drag the **forecast
+> slider** at the top of the map and the grid re-renders hour by hour — you can see
+> the plume arrive. Notice the banner: a **stubble-burning spike** — the model adds a
+> wind-driven smoke plume to every cell downwind, so the whole north-west lights up.
+> Now look at ABC Public School: AQI 218, **poor**. The card tells the admin exactly
+> what Cedar allows — outdoor assembly and PE are **blocked**, classes move indoors —
+> and the **indoor air advisory** estimates indoor AQI and says keep windows shut and
+> run purifiers. At AQI 300-plus it would close the school and switch to remote
+> learning. This is **policy, not opinion**."
 
 ---
 
 ## 1:10 – 1:45 · Clean-air routing
 
-**On screen:** in the route bar keep the default coords, click **Compare routes**.
+**On screen:** click **Pick on map**, tap two points on the map to set start and end.
 
 > "A student commuting to school wants the cleanest air, not just the fastest road.
-> Blue dashed is the fastest route. Green is the cleanest — it's slightly longer,
-> but the cleanest route cuts average pollution exposure by a few AQI points.
-> The app shows both, with a clean-index score, so people can choose."
+> I just tap start and end right on the map. Blue dashed is the fastest route.
+> Green is the cleanest — it's slightly longer, but cuts average pollution exposure
+> by a few AQI points. The app shows both, with a clean-index score, so people can
+> choose."
 
 ---
 
@@ -72,8 +74,11 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 > all running locally with **SAM CLI** and **LocalStack**, no AWS account needed.
 > The same code ships to AWS free tier: **EventBridge** triggers **Lambda** ingest
 > every 15 minutes into **S3** and **DynamoDB**; **Step Functions** orchestrates
-> nowcast → decide → alert; **SNS** delivers alerts and **SQS** buffers them;
-> **API Gateway** serves the API and **Amplify Hosting** serves this dashboard.
+> nowcast → decide → alert; **SNS** delivers alerts and **SQS** buffers them to an
+> archive Lambda; **Cognito** guards the write endpoints; **CloudWatch** metrics and
+> an alarm watch the pipeline; **API Gateway** serves the API and the dashboard ships
+> on **CloudFront + S3 + Route 53** (or **Amplify Hosting**), with **SageMaker** as an
+> optional drop-in for the nowcast model.
 > Every AWS service I used is from the allowed Build It and Ship It lists."
 
 ---
@@ -90,10 +95,11 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 
 ## Backup proof (if a judge asks "does it really run?")
 
-- `python scripts/selfcheck.py` → **47/47** end-to-end checks (policy, API,
-  template, stubble plume, no out-of-list AWS services).
+- `python scripts/selfcheck.py` → **96/96** end-to-end checks (policy, API,
+  template, stubble plume, Strands SDK, SQS buffer, JWT auth, OpenAQ adapter, no
+  out-of-list AWS services).
 - `python run.py --demo` → all five acceptance criteria printed.
-- `python -m unittest discover -s tests -t .` → **21 tests pass**.
+- `python -m unittest discover -s tests -t .` → **52 tests pass** (CI runs these).
 
 ---
 
@@ -122,7 +128,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 | 2:00 | Type question → **Ask agent** → read answer | agent decides + acts |
 | 2:15 | Alt-tab: open `src/breathebuddy/policies/school_rules.cedar` | "AWS open-source: Cedar" |
 | 2:25 | Alt-tab: open `infra/template.yaml` | Lambda/Step Functions/SNS/Amplify |
-| 2:35 | Alt-tab: terminal `python scripts/selfcheck.py` (47/47) | "it really runs" |
+| 2:35 | Alt-tab: terminal `python scripts/selfcheck.py` (96/96) | "it really runs" |
 | 2:45 | Back to map + school card | Impact + "Har saans, safe." |
 | 3:00 | Stop recording | — |
 

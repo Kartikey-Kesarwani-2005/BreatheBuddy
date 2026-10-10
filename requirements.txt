@@ -13,3 +13,6 @@ boto3>=1.34.0              # S3 / DynamoDB / SNS / SQS against LocalStack or AWS
 strands-agents>=0.1.0      # Strands Agents SDK (agent orchestration)
 cedarpy>=4.0.0             # real Cedar engine (built-in fallback otherwise)
 opensearch-py>=2.4.0       # OpenSearch geo index (optional)
+PyJWT>=2.8.0               # verify Cognito JWTs on write endpoints (optional)
+cryptography>=41.0.0       # RSA/JWKS support for PyJWT (optional)
+PyYAML>=6.0                # SAM template parsing in scripts/selfcheck.py (optional)

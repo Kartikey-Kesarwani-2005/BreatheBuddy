@@ -24,17 +24,19 @@ def _client(name: str):
 
 
 class AWSBridge:
-    """Best-effort mirror of local state into AWS. Failures never break the demo."""
+    """Mirrors state into AWS. Every call is wrapped, so if AWS is missing or
+    unreachable the pipeline just keeps running on local state."""
 
     def __init__(self, connect: bool = True) -> None:
         self.enabled = False
-        self._s3 = self._ddb = self._sns = self._es = None
+        self._s3 = self._ddb = self._sns = self._sqs = self._cw = None
         if connect:
             try:
                 self._s3 = _client("s3")
                 self._ddb = _client("dynamodb")
                 self._sns = _client("sns")
-                self._es = _client("opensearchserverless") if False else None
+                self._sqs = _client("sqs")
+                self._cw = _client("cloudwatch")
                 self.enabled = True
                 log.info("AWS bridge enabled (endpoint=%s)", config.AWS_ENDPOINT or "aws")
             except Exception as exc:  # pragma: no cover - depends on env
@@ -134,3 +136,68 @@ class AWSBridge:
         except Exception as exc:  # pragma: no cover
             log.warning("SNS publish failed: %s", exc)
             return {"delivered": False, "channel": "mock-outbox", "error": str(exc)}
+
+    # -- SQS buffer -------------------------------------------------------
+    def send_to_queue(self, body: dict) -> dict:
+        """Enqueue a delivery into the SQS buffer for downstream consumers."""
+        if not (self.enabled and config.SQS_QUEUE_URL and self._sqs):
+            return {"queued": False, "channel": "local-buffer"}
+        try:
+            resp = self._sqs.send_message(
+                QueueUrl=config.SQS_QUEUE_URL,
+                MessageBody=json.dumps(body),
+            )
+            return {"queued": True, "channel": "sqs", "message_id": resp.get("MessageId")}
+        except Exception as exc:  # pragma: no cover
+            log.warning("SQS send failed: %s", exc)
+            return {"queued": False, "channel": "local-buffer", "error": str(exc)}
+
+    def archive_buffer(self, messages: list) -> None:
+        """Archive drained buffer messages to S3."""
+        if not (self.enabled and self._s3 and messages):
+            return
+        try:
+            stamp = messages[0].get("ts", "batch") if isinstance(messages[0], dict) else "batch"
+            self._s3.put_object(
+                Bucket=config.S3_RAW_BUCKET,
+                Key=f"buffer/{stamp}.json",
+                Body=json.dumps(messages).encode(),
+                ContentType="application/json",
+            )
+        except Exception as exc:  # pragma: no cover
+            log.warning("S3 buffer archive failed: %s", exc)
+
+    # -- CloudWatch metrics ----------------------------------------------
+    def put_metric(self, name: str, value: float, unit: str = "Count") -> None:
+        """Publish a custom metric to CloudWatch (no-op unless AWS is enabled)."""
+        if not (self.enabled and self._cw):
+            return
+        try:
+            self._cw.put_metric_data(
+                Namespace=config.METRICS_NAMESPACE,
+                MetricData=[{"MetricName": name, "Value": float(value), "Unit": unit}],
+            )
+        except Exception as exc:  # pragma: no cover
+            log.warning("CloudWatch metric failed: %s", exc)
+
+
+def invoke_sagemaker(payload: dict) -> dict | None:
+    """Call the optional SageMaker nowcast endpoint; None when not configured."""
+    if not config.SAGEMAKER_ENDPOINT:
+        return None
+    try:
+        import boto3  # lazy: only needed when a SageMaker endpoint is configured
+        client = boto3.client(
+            "sagemaker-runtime",
+            region_name=config.AWS_REGION,
+            endpoint_url=config.AWS_ENDPOINT or None,
+        )
+        resp = client.invoke_endpoint(
+            EndpointName=config.SAGEMAKER_ENDPOINT,
+            ContentType="application/json",
+            Body=json.dumps(payload).encode(),
+        )
+        return json.loads(resp["Body"].read())
+    except Exception as exc:  # pragma: no cover - endpoint optional
+        log.warning("SageMaker invoke failed, using local model: %s", exc)
+        return None

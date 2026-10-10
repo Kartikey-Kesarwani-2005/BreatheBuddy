@@ -11,6 +11,10 @@ class TestAlerts(unittest.TestCase):
     def setUpClass(cls):
         bootstrap()
 
+    def setUp(self):
+        # cooldown state is process-wide; reset so each test is independent
+        STORE.reset_alert_state()
+
     def test_subscriber_threshold_fires_alert(self):
         before = len(STORE.alerts)
         # high-AQI hotspot, very low threshold => must fire
@@ -19,6 +23,13 @@ class TestAlerts(unittest.TestCase):
         fired = alerting.check_subscribers(STORE)
         self.assertGreaterEqual(len(fired), 1)
         self.assertGreater(len(STORE.alerts), before)
+
+    def test_repeat_alerts_are_suppressed(self):
+        school = next(iter(STORE.schools.values()))
+        first = alerting.check_school(school, STORE)
+        second = alerting.check_school(school, STORE)
+        self.assertIsNotNone(first)
+        self.assertIsNone(second, "duplicate alert should be suppressed by cooldown")
 
     def test_publish_delivers_via_mock_outbox(self):
         from breathebuddy.models import Alert
