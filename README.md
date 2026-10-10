@@ -26,7 +26,7 @@ and change what happens on the bad days*. BreatheBuddy does all three:
 **Eligibility (the rule that unlocks prizes):** *use at least one AWS open source tool **or**
 be deployed on AWS.* BreatheBuddy satisfies **both**:
 
-- **AWS open source tools used:** Strands Agents SDK, Cedar, OpenSearch, SAM CLI, LocalStack.
+- **AWS open source tools used:** Strands Agents SDK, Cedar (`cedarpy`), SAM CLI, LocalStack.
 - **Deployable on AWS:** `infra/template.yaml` (SAM) deploys to the free-tier Ship It services.
 - Every AWS service referenced is from the official Build It / Ship It lists - see the
   [services section](#aws-services-used-all-from-the-provided-list).
@@ -65,15 +65,13 @@ Everything runs on one screen: the live AQI map, a forecast slider, route compar
 | `docs/img/03-route-compare.png` | Cleanest vs fastest route, each with a clean-index score |
 | `docs/img/04-school-agent.png` | School decision card (Cedar verdict + indoor advisory) and the agent reply |
 
-To add them: run `python run.py`, open <http://localhost:8000>, capture those four views,
-and drop the PNGs into `docs/img/` using the names above, then uncomment this block:
+To refresh them: run `python run.py`, open <http://localhost:8000>, capture those four views,
+and drop the PNGs into `docs/img/` using the names above.
 
-<!--
 ![Dashboard + AQI map](docs/img/01-dashboard.png)
 ![Forecast time-slider](docs/img/02-forecast-slider.png)
 ![Cleanest vs fastest route](docs/img/03-route-compare.png)
 ![School decision card + agent](docs/img/04-school-agent.png)
--->
 
 ## Architecture
 
@@ -102,11 +100,11 @@ and drop the PNGs into `docs/img/` using the names above, then uncomment this bl
                               │
                     SNS (SMS/email) ─► Cognito-auth users
                               │
-           API Gateway (+Cognito authorizer) ─► Lambda
+           API Gateway ─► Lambda (verifies the Cognito JWT against the pool JWKS)
                               │
            CloudFront + S3 + Route 53  (or Amplify Hosting) ─► dashboard
                               │
-                    CloudWatch logs / metrics / alarm · OpenSearch geo index
+                    CloudWatch logs / metrics / alarm · optional OpenSearch geo index
 ```
 
 > **New to the repo?** Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the
@@ -118,7 +116,7 @@ and drop the PNGs into `docs/img/` using the names above, then uncomment this bl
 
 ## Quickstart - Build It (2 commands, zero dependencies)
 
-Requires **Python 3.10+** (tested on 3.14). No pip installs, no AWS account.
+Requires **Python 3.11+** (CI runs 3.11-3.13; developed on 3.14). No pip installs, no AWS account.
 
 ```bash
 python run.py            # 1) start API + dashboard  ->  http://localhost:8000
@@ -179,8 +177,8 @@ CI runs all of the above (plus `cfn-lint` and `node --check`) on every push - se
 Write endpoints (`/subscribe`, `/cycle`) require a Cognito bearer token when
 `BB_REQUIRE_AUTH=true`. Locally, a token is accepted on presence; when
 `BB_COGNITO_USER_POOL_ID` is set the JWT signature is **verified against the
-pool's JWKS** (`src/breathebuddy/auth.py`, needs `pip install PyJWT cryptography`),
-and on AWS the API Gateway Cognito authorizer validates it too. Writes are also
+pool's JWKS** (`src/breathebuddy/auth.py`, needs `pip install PyJWT cryptography`);
+the deployed Lambda runs the same check. Writes are also
 rate-limited per client (`BB_WRITE_RATE_LIMIT_PER_MIN`, default 60 → `429`).
 
 **Example**
@@ -243,7 +241,7 @@ BreatheBuddy/
 │   ├── handler/app.py
 │   └── localstack/docker-compose.yml
 ├── scripts/                   # fetch_tiles.py, selfcheck.py, LocalStack bootstrap + cycle
-├── tests/                     # stdlib unittest (52 tests)
+├── tests/                     # stdlib unittest (56 tests)
 ├── docs/ARCHITECTURE.md       # code map + request lifecycle (start here)
 ├── docs/DESIGN_NOTES.md       # the "why" behind the non-obvious choices
 ├── docs/DEPLOY.md             # step-by-step AWS SAM deploy + teardown
@@ -294,7 +292,7 @@ Step Functions, EventBridge, IAM, CloudWatch, Cognito, CloudFront, Route 53**.
    ```
 5. **Cognito auth (optional but wired)** - the template provisions a Cognito User Pool + client
    (outputs `UserPoolId`, `UserPoolClientId`). Deploy with `RequireAuth=true` to require a bearer
-   token on `/subscribe` and `/cycle`; the API Gateway Cognito authorizer validates the JWT.
+   token on `/subscribe` and `/cycle`; the deployed Lambda verifies the JWT against the pool's JWKS.
 6. **Email alerts (optional)** - redeploy with `AlertEmail=you@example.com` to subscribe it to the
    SNS topic and receive real alert emails.
 7. **SageMaker nowcast (optional)** - deploy a model endpoint and redeploy with
@@ -336,9 +334,9 @@ python scripts/localstack_cycle.py          # writes S3 object + DDB items + SNS
 | Criterion | BreatheBuddy |
 |-----------|--------------|
 | **01 Idea & impact** | One focused problem - *school safety on bad-air days* - solved well: not a vague "air quality app" but a specific rule engine that changes today's schedule for the people exposed (kids, riders, asthma patients). |
-| **02 Built on AWS** | Uses AWS **open source tools** (Strands Agents SDK, Cedar, OpenSearch; SAM CLI, LocalStack locally) **and** is deployable on AWS free tier (Lambda, DynamoDB, S3, SNS, SQS, Step Functions, API Gateway, EventBridge, CloudWatch, Cognito, CloudFront, Route 53, Amplify). |
+| **02 Built on AWS** | Uses AWS **open source tools** (Strands Agents SDK, Cedar; SAM CLI, LocalStack locally) **and** is deployable on AWS free tier (Lambda, DynamoDB, S3, SNS, SQS, Step Functions, API Gateway, EventBridge, CloudWatch, Cognito, CloudFront, Route 53, Amplify). |
 | **03 Design & usability** | One screen anyone can pick up: a guided 4-step strip ("Run cycle → pick a school → compare routes → ask the agent"), plain-language decision card ("Outdoor assembly cancelled"), color-coded AQI map, and a subscribe form for non-technical users. |
-| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 99/99, 52 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification, live OpenAQ feed adapter (mock fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green. |
+| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 99/99, 56 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification (RS256/ES256, fail-closed), live OpenAQ feed adapter (mock fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green (ruff + coverage). |
 | **05 Demo video** | **3-minute** script covering problem, who it's for, full walkthrough, and where AWS fits - `demo/demo_script.md`. |
 
 > Note from the rules: *there is no live demo - the video is what judges see*, and *local and
@@ -354,7 +352,7 @@ Varun Chakraborty, @antidoe.
 Submission checklist:
 
 - [x] Working project that runs locally with **zero installs** + AWS-deployable SAM template.
-- [x] Uses **AWS open source tools** (Strands Agents SDK, Cedar, OpenSearch, SAM CLI, LocalStack).
+- [x] Uses **AWS open source tools** (Strands Agents SDK, Cedar, SAM CLI, LocalStack).
 - [x] 3-minute demo video script - [`demo/demo_script.md`](demo/demo_script.md).
 - [ ] Blog write-up on **AWS Builder Center** (draft: [`docs/BLOG.md`](docs/BLOG.md)) - link it in the submission.
 - [ ] Verify **student status on AWS Builder Center** (required to compete).
@@ -364,7 +362,8 @@ Submission checklist:
 
 ## AWS services used (all from the provided list)
 
-Build It (open source): **Strands Agents SDK**, **Cedar**, **OpenSearch**, **SAM CLI**, **LocalStack**.
+Build It (open source): **Strands Agents SDK**, **Cedar** (`cedarpy`), **SAM CLI**, **LocalStack**
+(an optional outbound **OpenSearch** geo-index integration exists via `BB_OPENSEARCH_ENDPOINT`).
 Ship It: **Lambda, API Gateway, Step Functions, S3, DynamoDB, SNS, SQS** (real producer +
 buffer Lambda consumer), **EventBridge, CloudWatch** (custom metrics + alarm + dashboard),
 **Cognito** (user pool + write-endpoint auth), **CloudFront + Route 53 + S3** static hosting,

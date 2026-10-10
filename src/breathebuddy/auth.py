@@ -15,6 +15,9 @@ from . import config
 
 log = logging.getLogger("breathebuddy.auth")
 
+# Only asymmetric signatures are accepted; "none" / symmetric tricks never pass.
+_ALLOWED_ALGS = ("RS256", "ES256")
+
 
 def issuer() -> str:
     if config.COGNITO_ISSUER:
@@ -50,14 +53,20 @@ def verify_token(token: str) -> dict | None:
     try:
         import jwt
     except ImportError:
-        log.warning("auth: PyJWT not installed; accepting token on presence only")
-        return _claims_local()
+        # A pool IS configured, so write access must hinge on a real signature.
+        # Fail closed (reject) instead of silently accepting anything.
+        log.error("auth: PyJWT not installed but a user pool is configured; "
+                  "rejecting protected writes until it is installed")
+        return None
     try:
         header = jwt.get_unverified_header(token)
+        if header.get("alg") not in _ALLOWED_ALGS:
+            log.warning("auth: token signed with unsupported alg %r", header.get("alg"))
+            return None
         signing = _signing_key(token)
         return jwt.decode(
             token, signing.key,
-            algorithms=[header.get("alg") or "RS256"],
+            algorithms=list(_ALLOWED_ALGS),
             audience=config.COGNITO_CLIENT_ID or None,
             issuer=issuer() or None,
             options={"verify_aud": bool(config.COGNITO_CLIENT_ID)},

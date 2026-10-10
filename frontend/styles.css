@@ -45,6 +45,8 @@ button {
 }
 button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
 button:hover { filter: brightness(1.08); }
+button:active { transform: translateY(1px); }
+button:disabled { opacity: 0.55; cursor: not-allowed; filter: none; transform: none; }
 :focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; border-radius: 6px; }
 main { flex: 1; display: grid; grid-template-columns: 300px 1fr 320px; min-height: 0; }
 .panel { padding: 12px; overflow-y: auto; border-right: 1px solid var(--border); }

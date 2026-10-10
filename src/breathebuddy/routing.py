@@ -8,7 +8,7 @@ The cleanest route may be longer but is expected to show a lower average AQI.
 from __future__ import annotations
 
 import heapq
-from typing import Callable
+from collections.abc import Callable
 
 from . import config
 from .geo import haversine_m

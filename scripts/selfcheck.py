@@ -110,8 +110,9 @@ def main() -> int:
 
     # -------------------------------------------------------------------- API
     section("HTTP API + static dashboard")
-    from breathebuddy.api import Handler
     from http.server import ThreadingHTTPServer
+
+    from breathebuddy.api import Handler
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     port = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()

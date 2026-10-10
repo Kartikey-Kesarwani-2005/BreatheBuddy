@@ -15,19 +15,23 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from breathebuddy import agent as agent_mod            # noqa: E402
-from breathebuddy import auth                          # noqa: E402
-from breathebuddy import config                        # noqa: E402
-from breathebuddy import openapi                       # noqa: E402
-from breathebuddy.geo import valid_latlon              # noqa: E402
-from breathebuddy.ingest import ingest_once           # noqa: E402
-from breathebuddy.nowcast import build_grid           # noqa: E402
-from breathebuddy.ratelimit import WRITE_LIMITER       # noqa: E402
-from breathebuddy.routing import find_routes          # noqa: E402
-from breathebuddy.service import (aqi_query, bootstrap, environmental_events,  # noqa: E402
-                                  run_cycle, school_today, subscribe)
-from breathebuddy.store import STORE                   # noqa: E402
-from breathebuddy import alerts as alerting            # noqa: E402
+from breathebuddy import agent as agent_mod  # noqa: E402
+from breathebuddy import alerts as alerting  # noqa: E402
+from breathebuddy import auth, config, openapi  # noqa: E402
+from breathebuddy.geo import valid_latlon  # noqa: E402
+from breathebuddy.ingest import ingest_once  # noqa: E402
+from breathebuddy.nowcast import build_grid  # noqa: E402
+from breathebuddy.ratelimit import WRITE_LIMITER  # noqa: E402
+from breathebuddy.routing import find_routes  # noqa: E402
+from breathebuddy.service import (  # noqa: E402
+    aqi_query,
+    bootstrap,
+    environmental_events,
+    run_cycle,
+    school_today,
+    subscribe,
+)
+from breathebuddy.store import STORE  # noqa: E402
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -114,7 +118,7 @@ def lambda_api(event, context):
     try:
         if method == "OPTIONS":
             return _response(200, {"ok": True})
-        if method == "POST" and path in ("/subscribe", "/cycle"):
+        if method == "POST" and path in ("/subscribe", "/agent", "/cycle"):
             ip = ((event.get("requestContext") or {}).get("identity") or {}).get("sourceIp", "?")
             if not WRITE_LIMITER.allow(ip):
                 return _response(429, {"error": "rate limit exceeded"},
@@ -122,6 +126,8 @@ def lambda_api(event, context):
             if not _authorized(event):
                 return _response(401, {"error": "unauthorized"})
         body = json.loads(event.get("body") or "{}")
+        if not isinstance(body, dict):
+            return _response(400, {"error": "body must be a JSON object"})
 
         if method == "GET" and path == "/health":
             return _response(200, {"ok": True, "city": config.CITY_NAME})
@@ -165,14 +171,17 @@ def lambda_api(event, context):
         if method == "POST" and path == "/subscribe":
             return _response(201, subscribe(body))
         if method == "POST" and path == "/agent":
+            question = str(body.get("question", "") or "").strip()
+            if not question:
+                return _response(400, {"error": "question is required"})
             engine = str(body.get("engine", "")).lower()
             prefer = True if engine == "strands" else (False if engine == "simple" else None)
-            return _response(200, agent_mod.ask(body.get("question", ""), prefer_strands=prefer))
+            return _response(200, agent_mod.ask(question, prefer_strands=prefer))
         if method == "POST" and path == "/cycle":
             return _response(200, run_cycle())
         return _response(404, {"error": "not found", "path": path})
     except (ValueError, KeyError, TypeError):
         return _response(400, {"error": "bad request"})
-    except Exception as exc:  # pragma: no cover
+    except Exception:  # pragma: no cover
         log.exception("api error")
-        return _response(500, {"error": str(exc)})
+        return _response(500, {"error": "internal error"})

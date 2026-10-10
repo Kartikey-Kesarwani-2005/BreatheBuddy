@@ -138,9 +138,9 @@ package, so local and deployed behaviour use one code path.
 | Policy | `policy.evaluate` (Cedar) | Lambda `lambda_policy` |
 | Alerts | outbox + local buffer | SNS + SQS → `lambda_buffer` → S3 |
 | API | `api.serve` (stdlib) | API Gateway + Lambda `lambda_api` |
-| Auth | presence check | Cognito authorizer + JWKS verify |
+| Auth | presence check | Cognito JWT verified (JWKS) in Lambda |
 | Metrics | log only | CloudWatch metrics + alarm |
-| Search | in-memory grid | OpenSearch geo index |
+| Search | in-memory grid | optional OpenSearch geo index |
 | Hosting | stdlib static files | CloudFront + S3 + Route 53 (or Amplify) |
 
 ---

@@ -52,7 +52,7 @@ CloudWatch metrics/alarm, and CloudFront + S3 + Route 53 hosting.
 
 ## How AWS is used (eligibility)
 
-- **AWS open source tools (Build It):** Strands Agents SDK, Cedar, OpenSearch, SAM CLI,
+- **AWS open source tools (Build It):** Strands Agents SDK, Cedar, SAM CLI,
   LocalStack.
 - **Deployed on AWS free tier (Ship It):** Lambda, API Gateway, Step Functions,
   EventBridge, S3, DynamoDB, SNS, SQS, CloudWatch, Cognito, CloudFront, Route 53, and

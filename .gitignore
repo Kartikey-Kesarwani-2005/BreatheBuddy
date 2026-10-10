@@ -12,5 +12,10 @@ infra/localstack/.localstack/
 # Local demo output
 data/alerts_outbox.json
 
+# Tooling artifacts
+.coverage
+htmlcov/
+*.log
+
 # Env
 .env

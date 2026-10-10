@@ -80,9 +80,9 @@ SAGEMAKER_ENDPOINT = os.getenv("BB_SAGEMAKER_ENDPOINT", "")
 METRICS_NAMESPACE = os.getenv("BB_METRICS_NAMESPACE", "BreatheBuddy")
 
 # --- Auth (Amazon Cognito) ------------------------------------------------
-# When REQUIRE_AUTH is on, write endpoints (/subscribe, /cycle) demand a bearer
-# token. Locally any non-empty token is accepted; on AWS the API Gateway Cognito
-# authorizer validates the JWT signature against the user pool.
+# When REQUIRE_AUTH is on, write endpoints (/subscribe, /cycle, /agent) demand a
+# bearer token. Locally any non-empty token is accepted; when a pool is
+# configured the JWT signature (RS256/ES256) is verified against the JWKS.
 COGNITO_USER_POOL_ID = os.getenv("BB_COGNITO_USER_POOL_ID", "")
 COGNITO_CLIENT_ID = os.getenv("BB_COGNITO_CLIENT_ID", "")
 # Override the derived issuer / JWKS URL (useful for tests or non-Cognito IdPs).

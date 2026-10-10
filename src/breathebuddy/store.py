@@ -29,7 +29,7 @@ class Store:
         self.aws = None  # lazily attached AWS bridge
 
     # -- bootstrap --------------------------------------------------------
-    def load_mock(self) -> "Store":
+    def load_mock(self) -> Store:
         stations = json.loads((config.DATA_DIR / "stations.json").read_text("utf-8"))
         for r in stations["stations"]:
             reading = Reading.from_dict(r)

@@ -2,8 +2,7 @@ import unittest
 
 import tests  # noqa: F401  (sets sys.path)
 from breathebuddy import config
-from breathebuddy.ingest import (_openaq_pm25, fetch_openaq, fetch_readings,
-                                 pm25_to_aqi)
+from breathebuddy.ingest import _openaq_pm25, fetch_openaq, fetch_readings, pm25_to_aqi
 
 
 class TestIngestFeed(unittest.TestCase):

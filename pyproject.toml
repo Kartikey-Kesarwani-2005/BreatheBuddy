@@ -44,7 +44,9 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/anomalyco/opencode"
+Homepage = "https://github.com/Kartikey-Kesarwani-2005/BreatheBuddy"
+Repository = "https://github.com/Kartikey-Kesarwani-2005/BreatheBuddy"
+Issues = "https://github.com/Kartikey-Kesarwani-2005/BreatheBuddy/issues"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

@@ -69,6 +69,14 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "breathebuddy-raw-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-raw-readings
+            Status: Enabled
+            ExpirationInDays: 30
 
   ReadingsTable:
     Type: AWS::DynamoDB::Table
@@ -127,6 +135,15 @@ Resources:
     Properties:
       QueueName: breathebuddy-buffer
       VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt BufferDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  BufferDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: breathebuddy-buffer-dlq
+      MessageRetentionPeriod: 1209600
 
   # --------------------------------------------------------------- role
   LambdaRole:
@@ -148,7 +165,11 @@ Resources:
               - Effect: Allow
                 Action: [dynamodb:PutItem, dynamodb:GetItem, dynamodb:Query,
                          dynamodb:Scan, dynamodb:BatchWriteItem]
-                Resource: "*"
+                Resource:
+                  - !GetAtt ReadingsTable.Arn
+                  - !GetAtt AlertsTable.Arn
+                  - !Sub "${AlertsTable.Arn}/index/*"
+                  - !GetAtt SubscribersTable.Arn
               - Effect: Allow
                 Action: [s3:PutObject, s3:GetObject]
                 Resource: !Sub "${IngestionBucket.Arn}/*"
@@ -182,7 +203,11 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: [lambda:InvokeFunction]
-                Resource: "*"
+                Resource:
+                  - !GetAtt IngestFunction.Arn
+                  - !GetAtt NowcastFunction.Arn
+                  - !GetAtt PolicyFunction.Arn
+                  - !GetAtt AlertFunction.Arn
 
   # ------------------------------------------------------------- functions
   IngestFunction:
@@ -272,16 +297,27 @@ Resources:
       ScheduleExpression: rate(15 minutes)
       State: ENABLED
       Targets:
-        - Id: ingest
-          Arn: !GetAtt IngestFunction.Arn
+        - Id: pipeline
+          Arn: !Ref BreatheBuddyStateMachine
+          RoleArn: !GetAtt EventsInvokeStateMachineRole.Arn
 
-  IngestSchedulePermission:
-    Type: AWS::Lambda::Permission
+  EventsInvokeStateMachineRole:
+    Type: AWS::IAM::Role
     Properties:
-      FunctionName: !Ref IngestFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt FifteenMinuteRule.Arn
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: start-pipeline
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [states:StartExecution]
+                Resource: !Ref BreatheBuddyStateMachine
 
   # ------------------------------------------------------- observability
   ApiErrorAlarm:

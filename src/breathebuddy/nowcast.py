@@ -13,12 +13,19 @@ from __future__ import annotations
 
 import json
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timedelta
 
 from . import config
 from .geo import bearing_deg, haversine_m, offset_latlon
 from .models import GridCell, Reading
 from .store import STORE, Store
+
+# AQI is bounded 0..500 by convention; models blend + plume below stay in range.
+IST_OFFSET = timedelta(hours=5, minutes=30)
+
+
+def _clamp_aqi(value: float) -> float:
+    return round(max(0.0, min(500.0, value)), 1)
 
 
 def _traffic_factor(traffic: float) -> float:
@@ -97,7 +104,9 @@ def build_grid(store: Store | None = None, rows: int | None = None,
     res = config.GRID_RES_M
     readings = store.all_readings()
     events = load_events()
-    hour = datetime.now(timezone.utc).hour
+    # The diurnal cycle has to follow Delhi's clock: India is UTC+5:30, so the
+    # "morning peak" / "mid-afternoon lull" line up with local school hours.
+    hour = (datetime.now(UTC) + IST_OFFSET).hour
     cells: dict[str, GridCell] = {}
     for r in range(rows):
         for c in range(cols):
@@ -106,8 +115,8 @@ def build_grid(store: Store | None = None, rows: int | None = None,
             de = (c - (cols - 1) / 2.0) * res
             lat, lon = offset_latlon(config.CENTER_LAT, config.CENTER_LON, dn, de)
             plume = round(_plume_aqi(lat, lon, events), 1)
-            aqi_now = round(_idw_aqi(lat, lon, readings) + plume, 1)
-            forecast = [round(aqi_now * _diurnal((hour + h) % 24), 1)
+            aqi_now = _clamp_aqi(_idw_aqi(lat, lon, readings) + plume)
+            forecast = [_clamp_aqi(aqi_now * _diurnal((hour + h) % 24))
                         for h in range(1, config.FORECAST_HOURS + 1)]
             cid = f"g_{r}_{c}"
             cells[cid] = GridCell(cell_id=cid, lat=lat, lon=lon, aqi_now=aqi_now,
@@ -123,24 +132,36 @@ def nowcast_point(lat: float, lon: float, store: Store | None = None) -> dict:
     cells = store.get_grid() or build_grid(store)
     ranked = sorted(cells.values(), key=lambda c: haversine_m(lat, lon, c.lat, c.lon))
     near = ranked[:4]
+    if not near:
+        # No grid at all (never ran a cycle): report a neutral default instead
+        # of dividing by zero.
+        return {
+            "lat": round(lat, 6),
+            "lon": round(lon, 6),
+            "aqi_now": 0.0,
+            "aqi_forecast": [0.0] * config.FORECAST_HOURS,
+            "clean_index": clean_index(0),
+            "nearest_cell": None,
+            "engine": "empty",
+        }
     weights = [1.0 / (haversine_m(lat, lon, c.lat, c.lon) ** 2 + 1.0) for c in near]
     wsum = sum(weights)
-    aqi_now = round(sum(w * c.aqi_now for w, c in zip(weights, near)) / wsum, 1)
+    aqi_now = round(sum(w * c.aqi_now for w, c in zip(weights, near, strict=True)) / wsum, 1)
     forecast = []
     for h in range(config.FORECAST_HOURS):
-        pairs = [(w, c.aqi_forecast[h]) for c, w in zip(near, weights)
+        pairs = [(w, c.aqi_forecast[h]) for c, w in zip(near, weights, strict=True)
                  if h < len(c.aqi_forecast)]
         if pairs:
             wh = sum(w for w, _ in pairs)
-            forecast.append(round(sum(w * v for w, v in pairs) / wh, 1))
+            forecast.append(_clamp_aqi(sum(w * v for w, v in pairs) / wh))
         else:
             forecast.append(aqi_now)
     result = {
         "lat": round(lat, 6),
         "lon": round(lon, 6),
-        "aqi_now": aqi_now,
-        "aqi_forecast": forecast,
-        "clean_index": clean_index(aqi_now),
+        "aqi_now": _clamp_aqi(aqi_now),
+        "aqi_forecast": [_clamp_aqi(x) for x in forecast],
+        "clean_index": clean_index(_clamp_aqi(aqi_now)),
         "nearest_cell": near[0].cell_id,
         "engine": "local",
     }

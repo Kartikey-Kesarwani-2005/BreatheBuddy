@@ -6,7 +6,7 @@
 
 **Repo:** https://github.com/Kartikey-Kesarwani-2005/BreatheBuddy
 
-**Built with:** AWS open source tools (Strands Agents SDK, Cedar, OpenSearch, SAM CLI,
+**Built with:** AWS open source tools (Strands Agents SDK, Cedar, SAM CLI,
 LocalStack) + AWS free tier (Lambda, API Gateway, Step Functions, EventBridge, S3,
 DynamoDB, SNS, SQS, CloudWatch, Cognito, CloudFront, Route 53, optional SageMaker)
 
@@ -81,18 +81,18 @@ AWS (Ship It): the same `breathebuddy` package, wired to managed services.
                               |
                     SNS (SMS/email) -> Cognito-auth users
                               |
-           API Gateway (+Cognito authorizer) -> Lambda
+           API Gateway -> Lambda (JWKS verify)
                               |
            CloudFront + S3 + Route 53 (or Amplify Hosting) -> dashboard
                               |
-                    CloudWatch logs / metrics / alarm · OpenSearch geo index
+                    CloudWatch logs / metrics / alarm · optional OpenSearch geo index
 ```
 
 ## The stack
 
 - **AWS open source (Build It):** **Strands Agents SDK** (the agent), **Cedar** (the
-  policy engine, via `cedarpy` with a built-in fallback), **OpenSearch** (geo index),
-  **SAM CLI** and **LocalStack** for local AWS.
+  policy engine, via `cedarpy` with a built-in fallback), **SAM CLI** and
+  **LocalStack** for local AWS.
 - **AWS cloud (Ship It):** **Lambda**, **API Gateway**, **Step Functions**,
   **EventBridge**, **S3**, **DynamoDB**, **SNS**, **SQS**, **CloudWatch**,
   **Cognito**, **CloudFront** + **Route 53** + **S3** hosting, and an optional
@@ -134,7 +134,7 @@ Hackathon projects are mostly a list of things that unexpectedly didn't work. Ou
 
 ## Why it is built on AWS (and how)
 
-It uses several **AWS open source tools** (Strands, Cedar, OpenSearch, SAM CLI,
+It uses several **AWS open source tools** (Strands, Cedar, SAM CLI,
 LocalStack), which on its own satisfies the eligibility rule, and it also **deploys on
 the AWS free tier** through a single SAM template. Nothing outside the Build It / Ship
 It lists is used.

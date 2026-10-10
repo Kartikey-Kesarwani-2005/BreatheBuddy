@@ -17,17 +17,24 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import config
 from . import agent as agent_mod
-from . import auth
-from . import openapi
+from . import auth, config, openapi
 from .geo import valid_latlon
 from .ratelimit import WRITE_LIMITER
-from .service import (aqi_query, bootstrap, environmental_events, route_query,
-                      run_cycle, school_today, subscribe)
+from .service import (
+    aqi_query,
+    bootstrap,
+    environmental_events,
+    route_query,
+    run_cycle,
+    school_today,
+    subscribe,
+)
 from .store import STORE
 
 log = logging.getLogger("breathebuddy.api")
+
+MAX_BODY = 256 * 1024   # refuse oversized JSON bodies up front
 
 CONTENT_TYPES = {".html": "text/html", ".js": "application/javascript",
                  ".css": "text/css", ".json": "application/json",
@@ -108,15 +115,15 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self._route_get()
         except Exception as exc:  # pragma: no cover
-            log.exception("GET failed")
-            self._send({"error": str(exc)}, 500)
+            log.exception("GET failed: %s", exc)
+            self._send({"error": "internal error"}, 500)
 
     def do_POST(self):  # noqa: N802
         try:
             self._route_post()
         except Exception as exc:  # pragma: no cover
-            log.exception("POST failed")
-            self._send({"error": str(exc)}, 500)
+            log.exception("POST failed: %s", exc)
+            self._send({"error": "internal error"}, 500)
 
     # -- routing ----------------------------------------------------------
     def _route_get(self):
@@ -198,9 +205,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def _route_post(self):
         path = urlparse(self.path).path
+        if int(self.headers.get("Content-Length", 0) or 0) > MAX_BODY:
+            return self._send({"error": "request too large"}, 413)
         body = self._json_body()
+        if not isinstance(body, dict):
+            return self._send({"error": "body must be a JSON object"}, 400)
 
-        writes = ("/subscribe", "/api/subscribe", "/cycle", "/api/cycle")
+        # /agent is write-ish (runs a pipeline), so it shares the auth + rate
+        # limits that already protect /cycle and /subscribe.
+        writes = ("/subscribe", "/api/subscribe", "/cycle", "/api/cycle",
+                  "/agent", "/api/agent")
         if path in writes:
             if not WRITE_LIMITER.allow(self.client_address[0]):
                 self.send_response(429)
@@ -218,7 +232,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(subscribe(body), 201)
 
         if path in ("/agent", "/api/agent"):
-            question = body.get("question", "")
+            question = str(body.get("question", "") or "").strip()
+            if not question:
+                return self._send({"error": "question is required"}, 400)
             engine = str(body.get("engine", "")).lower()
             prefer = True if engine == "strands" else (False if engine == "simple" else None)
             return self._send(agent_mod.ask(question, prefer_strands=prefer))
@@ -239,7 +255,7 @@ def serve(host: str | None = None, port: int | None = None):
         print(f"\nCould not start on {host}:{port} -> {exc}")
         print(f"Port {port} may already be in use by another server.")
         print(f"Try a different port, e.g.:  python run.py --port {port + 1}\n")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
     log.info("BreatheBuddy API on http://%s:%s", host, port)
     print(f"BreatheBuddy running -> http://{host}:{port}")
     httpd.serve_forever()

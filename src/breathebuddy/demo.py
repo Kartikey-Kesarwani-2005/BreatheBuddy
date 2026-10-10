@@ -4,10 +4,9 @@
 """
 from __future__ import annotations
 
-from .service import (aqi_query, bootstrap, route_query, run_cycle,
-                      school_today)
-from .store import STORE
 from . import agent as agent_mod
+from .service import aqi_query, bootstrap, route_query, run_cycle, school_today
+from .store import STORE
 
 
 def line(title: str) -> None:

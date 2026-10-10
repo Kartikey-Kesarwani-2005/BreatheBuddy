@@ -3,8 +3,7 @@ import unittest
 import tests  # noqa: F401  (sets sys.path)
 from breathebuddy import config
 from breathebuddy.nowcast import build_grid, load_events
-from breathebuddy.service import (bootstrap, environmental_events,
-                                  indoor_advisory, school_today)
+from breathebuddy.service import bootstrap, environmental_events, indoor_advisory, school_today
 from breathebuddy.store import STORE
 
 

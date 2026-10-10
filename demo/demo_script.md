@@ -72,7 +72,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 `infra/template.yaml`, then the LocalStack/SAM commands.
 
 > "BreatheBuddy is built on AWS open-source tools: the **Strands Agents SDK** for the
-> agent, **Cedar** for the school rules, and **OpenSearch** for the geo index -
+> agent and **Cedar** for the school rules -
 > all running locally with **SAM CLI** and **LocalStack**, no AWS account needed.
 > The same code ships to AWS free tier: **EventBridge** triggers **Lambda** ingest
 > every 15 minutes into **S3** and **DynamoDB**; **Step Functions** orchestrates

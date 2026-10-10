@@ -6,13 +6,13 @@ Each model knows how to serialise itself to/from the API / storage shape.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
 def _clean(d: dict[str, Any]) -> dict[str, Any]:
@@ -39,7 +39,7 @@ class Reading:
         return _clean(asdict(self))
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "Reading":
+    def from_dict(cls, d: dict[str, Any]) -> Reading:
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
@@ -74,7 +74,7 @@ class School:
         return _clean(asdict(self))
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "School":
+    def from_dict(cls, d: dict[str, Any]) -> School:
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
@@ -90,7 +90,7 @@ class Alert:
 
     @classmethod
     def create(cls, target: str, kind: str, aqi: float, message: str,
-               channel: str = "sns") -> "Alert":
+               channel: str = "sns") -> Alert:
         return cls(alert_id="alr_" + uuid.uuid4().hex[:10], target=target, kind=kind,
                    aqi=aqi, message=message, channel=channel)
 

@@ -40,7 +40,7 @@ class TestAuthJwt(unittest.TestCase):
             import jwt
             from cryptography.hazmat.primitives.asymmetric import rsa
         except ImportError:  # pragma: no cover - optional extra
-            raise unittest.SkipTest("PyJWT + cryptography not installed")
+            raise unittest.SkipTest("PyJWT + cryptography not installed") from None
         cls.jwt = jwt
         cls.private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
@@ -94,6 +94,24 @@ class TestAuthJwt(unittest.TestCase):
                                  other, algorithm="RS256", headers={"kid": "key-1"})
         with self._patch_signing():
             self.assertIsNone(auth.verify_token(forged))
+
+    def test_alg_none_rejected(self):
+        # "alg: none" (unsigned) tokens must never pass, even with valid claims.
+        unsigned = self.jwt.encode({"sub": "x", "aud": "client-123",
+                                    "iss": "https://issuer.test",
+                                    "exp": int(time.time()) + 3600},
+                                   key=None, algorithm="none")
+        with self._patch_signing():
+            self.assertIsNone(auth.verify_token(unsigned))
+
+    def test_symmetric_alg_rejected(self):
+        # HS256 uses a shared secret; only asymmetric algs are allowed.
+        secret = self.jwt.encode({"sub": "x", "aud": "client-123",
+                                  "iss": "https://issuer.test",
+                                  "exp": int(time.time()) + 3600},
+                                 key="shared-secret", algorithm="HS256")
+        with self._patch_signing():
+            self.assertIsNone(auth.verify_token(secret))
 
 
 if __name__ == "__main__":

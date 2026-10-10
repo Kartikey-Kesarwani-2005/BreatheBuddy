@@ -1,6 +1,7 @@
 # Screenshots
 
-Drop the dashboard PNGs here (referenced from the main `README.md`):
+These PNGs are captured from the running dashboard and are embedded in the main
+`README.md`:
 
 | File | View |
 |------|------|
@@ -9,7 +10,7 @@ Drop the dashboard PNGs here (referenced from the main `README.md`):
 | `03-route-compare.png` | Cleanest vs fastest route with clean-index scores |
 | `04-school-agent.png` | School decision card (Cedar verdict + indoor advisory) + agent reply |
 
-## How to capture
+## How to refresh them
 
 ```bash
 python run.py          # open http://localhost:8000
@@ -21,5 +22,5 @@ python run.py          # open http://localhost:8000
 4. **School + agent** - pick a school, and ask the agent a question (e.g. "Should ABC
    School hold outdoor assembly at 8am tomorrow?").
 
-Keep each image under ~300 KB (a full-window browser screenshot at 1280 px is fine).
-Then uncomment the image block in the main `README.md` to embed them.
+Capture each view at ~1400x900 and overwrite the matching file above. Keep each
+image under ~1.3 MB (a full-window browser screenshot is fine).

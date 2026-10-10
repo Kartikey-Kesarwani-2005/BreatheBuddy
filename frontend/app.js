@@ -34,7 +34,23 @@ const I18N = {
     kind_rider: "Rider", kind_asthma: "Asthma patient", kind_child: "School child",
     kind_elderly: "Elderly", sub_btn: "Subscribe",
     ph_name: "Name", ph_phone: "Phone (+91…)", ph_email: "Email", now: "Now",
-    bm_dark: "Dark", bm_streets: "Streets", bm_sat: "Satellite", bm_terrain: "Terrain"
+    bm_dark: "Dark", bm_streets: "Streets", bm_sat: "Satellite", bm_terrain: "Terrain",
+    route_title: "Route comparison", winner: "winner", fastest: "Fastest", cleanest: "Cleanest",
+    no_route: "No route found. Use from=lat,lon&to=lat,lon",
+    no_alerts: "No alerts yet.", err_server: "Network error - is the server running?",
+    thinking: "Thinking…", rl_running: "Running…", sub_running: "Subscribing…",
+    engine: "engine", school_allowed: "Allowed", school_blocked: "Blocked by Cedar",
+    school_peak: "Peak next 6h", indoor_title: "Indoor air advisory (indoor est. AQI {aqi})",
+    pick_start: "Click the map to set the start point…", pick_end: "Now click the end point…",
+    locating: "Locating…", your_location: "Your location",
+    start_point_set: "Start point set. Now pick a destination and compare routes.",
+    stubble: "Stubble-burning spike",
+    wind: "Smoke drifting {from} → {to} · grid AQI elevated downwind",
+    geo_unsupported: "Geolocation is not supported by this browser.",
+    geo_unavailable: "Location unavailable",
+    sub_done: "Subscribed {name} ({kind}) - alert threshold AQI {threshold}.",
+    leg_good: "Good (0-50)", leg_sat: "Satisfactory (51-100)", leg_mod: "Moderate (101-200)",
+    leg_poor: "Poor (201-300)", leg_vpoor: "Very poor (301-400)", leg_sev: "Severe (400+)"
   },
   hi: {
     run_cycle: "15-मिनट चक्र चलाएँ", sign_in: "साइन इन (Cognito)",
@@ -52,7 +68,23 @@ const I18N = {
     kind_rider: "राइडर", kind_asthma: "अस्थमा रोगी", kind_child: "स्कूली बच्चा",
     kind_elderly: "बुज़ुर्ग", sub_btn: "सब्सक्राइब करें",
     ph_name: "नाम", ph_phone: "फ़ोन (+91…)", ph_email: "ईमेल", now: "अभी",
-    bm_dark: "डार्क", bm_streets: "सड़कें", bm_sat: "सैटेलाइट", bm_terrain: "भू-आकृति"
+    bm_dark: "डार्क", bm_streets: "सड़कें", bm_sat: "सैटेलाइट", bm_terrain: "भू-आकृति",
+    route_title: "रास्तों की तुलना", winner: "विजेता", fastest: "सबसे तेज़", cleanest: "सबसे साफ़",
+    no_route: "कोई रास्ता नहीं मिला। from=lat,lon और to=lat,lon दें",
+    no_alerts: "अभी कोई अलर्ट नहीं।", err_server: "नेटवर्क त्रुटि - क्या सर्वर चल रहा है?",
+    thinking: "सोच रहा है…", rl_running: "चल रहा है…", sub_running: "सब्सक्राइब हो रहा है…",
+    engine: "इंजन", school_allowed: "अनुमत", school_blocked: "Cedar द्वारा अवरुद्ध",
+    school_peak: "अगले 6 घंटे का शिखर", indoor_title: "इनडोर वायु सलाह (अनुमानित इनडोर AQI {aqi})",
+    pick_start: "प्रारंभ बिंदु के लिए नक्शे पर क्लिक करें…", pick_end: "अब अंत बिंदु पर क्लिक करें…",
+    locating: "स्थान ढूँढ रहे हैं…", your_location: "आपका स्थान",
+    start_point_set: "प्रारंभ बिंदु सेट। अब गंतव्य चुनें और रास्ते तुलना करें।",
+    stubble: "पराली जलने का उछाल",
+    wind: "धुआँ {from} → {to} बह रहा · नीचे की ओर ग्रिड AQI बढ़ा",
+    geo_unsupported: "यह ब्राउज़र जियोलोकेशन का समर्थन नहीं करता।",
+    geo_unavailable: "स्थान उपलब्ध नहीं",
+    sub_done: "{name} सब्सक्राइब हुआ ({kind}) - अलर्ट थ्रेशोल्ड AQI {threshold}।",
+    leg_good: "अच्छा (0-50)", leg_sat: "संतोषजनक (51-100)", leg_mod: "मध्यम (101-200)",
+    leg_poor: "खराब (201-300)", leg_vpoor: "बहुत खराब (301-400)", leg_sev: "गंभीर (400+)"
   }
 };
 
@@ -61,6 +93,59 @@ if (!I18N[LANG]) LANG = "en";
 
 function t(key) {
   return (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key;
+}
+
+// Translate + fill {placeholders}: tf("wind", {from: "N", to: "S"}).
+function tf(key, vars) {
+  let s = t(key);
+  for (const k in (vars || {})) s = s.split("{" + k + "}").join(vars[k]);
+  return s;
+}
+
+// --- colour contrast helpers ----------------------------------------------
+function _hexRgb(h) {
+  h = h.replace("#", "");
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+function _lum(hex) {
+  const [r, g, b] = _hexRgb(hex).map(v => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+// Pick dark or light text for a filled swatch of the given background colour.
+function textOn(bg) { return _lum(bg) > 0.35 ? "#08121f" : "#ffffff"; }
+// Lighten a very dark colour so it stays legible as text on the dark card.
+function readable(hex) {
+  if (_lum(hex) >= 0.30) return hex;
+  const [r, g, b] = _hexRgb(hex).map(v => Math.round(v + (255 - v) * 0.65));
+  return `rgb(${r},${g},${b})`;
+}
+
+// fetch JSON with a timeout and a clear error on non-2xx (spinners never hang).
+async function fetchJSON(path, opts = {}, timeoutMs = 8000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(API(path), { ...opts, signal: ctrl.signal });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function setErr(el, msg) { if (el) el.innerHTML = `<span class="err">${msg}</span>`; }
+
+// Disable a button while an async action runs (prevents double submit).
+async function withBusy(btn, label, fn) {
+  if (!btn || btn.disabled) return fn();
+  const orig = btn.textContent;
+  btn.disabled = true;
+  if (label) btn.textContent = label;
+  try { return await fn(); }
+  finally { btn.disabled = false; btn.textContent = orig; }
 }
 
 function applyLang() {
@@ -75,6 +160,12 @@ function setLang(lang) {
   LANG = I18N[lang] ? lang : "en";
   try { localStorage.setItem("bb_lang", LANG); } catch (e) { /* private mode */ }
   applyLang();
+  // Dynamic regions are built in JS, so re-render them in the new language.
+  const sel = document.getElementById("school-select");
+  if (sel && sel.value) loadSchoolCard(sel.value);
+  if (document.getElementById("alerts")) loadAlerts();
+  if (document.getElementById("event-banner")) loadEvents();
+  if (typeof renderLegend === "function") renderLegend();
 }
 
 let map, gridLayer, stationLayer, schoolLayer, routeLayer, pickLayer, meLayer;
@@ -138,11 +229,14 @@ function setBasemap(name, persist) {
   if (persist !== false) {
     try { localStorage.setItem(BM_KEY, name); } catch (e) { /* private mode */ }
   }
-  document.querySelectorAll("#basemaps .bm").forEach(b =>
-    b.classList.toggle("active", b.dataset.bm === name));
+  document.querySelectorAll("#basemaps .bm").forEach(b => {
+    const on = b.dataset.bm === name;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", on);
+  });
   // Redraw so cell opacity matches the new base (darker map can be more
   // transparent; a light street map needs slightly stronger cells).
-  if (MAP_READY && gridCells.length) drawGrid(gridCells);
+  if (MAP_READY && gridCells.length) scheduleGrid();
 }
 
 function wireBasemaps() {
@@ -209,13 +303,11 @@ function showMapNotice(msg) {
 }
 
 function renderLegend() {
-  const scale = [
-    ["Good (0-50)", "#2ecc71"], ["Satisfactory (51-100)", "#a3d977"],
-    ["Moderate (101-200)", "#f5c542"], ["Poor (201-300)", "#ff7a45"],
-    ["Very poor (301-400)", "#b1409a"], ["Severe (400+)", "#7a1030"]
-  ];
-  document.getElementById("legend").innerHTML = scale.map(
-    ([t, c]) => `<div class="item"><span class="sw" style="background:${c}"></span>${t}</div>`
+  const el = document.getElementById("legend");
+  if (!el) return;
+  const scale = ["leg_good", "leg_sat", "leg_mod", "leg_poor", "leg_vpoor", "leg_sev"];
+  el.innerHTML = scale.map((key, i) =>
+    `<div class="item"><span class="sw" style="background:${AQI_COLORS[i][1]}"></span>${t(key)}</div>`
   ).join("");
 }
 
@@ -227,16 +319,24 @@ function aqiAt(c) {
   return c.aqi_now;
 }
 
+// Cell size derived once from the last grid (500 m ~ 0.0045 lat / 0.005 lon).
+let _gridDeltas = null;
+let _gridRaf = null;
+
 function drawGrid(cells) {
   if (!MAP_READY) return;
   gridLayer.clearLayers();
   if (!cells.length) return;
-  // Derive the true cell size from the grid instead of assuming a fixed
-  // degree box (500 m is ~0.0045° lat, ~0.005° lon at Delhi's latitude).
-  const lats = [...new Set(cells.map(c => c.lat))].sort((a, b) => a - b);
-  const lons = [...new Set(cells.map(c => c.lon))].sort((a, b) => a - b);
-  const dLat = lats.length > 1 ? Math.abs(lats[1] - lats[0]) : 0.0045;
-  const dLon = lons.length > 1 ? Math.abs(lons[1] - lons[0]) : 0.005;
+  if (!_gridDeltas || _gridDeltas.n !== cells.length) {
+    const lats = [...new Set(cells.map(c => c.lat))].sort((a, b) => a - b);
+    const lons = [...new Set(cells.map(c => c.lon))].sort((a, b) => a - b);
+    _gridDeltas = {
+      n: cells.length,
+      dLat: lats.length > 1 ? Math.abs(lats[1] - lats[0]) : 0.0045,
+      dLon: lons.length > 1 ? Math.abs(lons[1] - lons[0]) : 0.005
+    };
+  }
+  const { dLat, dLon } = _gridDeltas;
   for (const c of cells) {
     L.rectangle([
       [c.lat - dLat / 2, c.lon - dLon / 2],
@@ -249,10 +349,22 @@ function drawGrid(cells) {
   }
 }
 
+// Coalesce rapid redraws (slider drag, style switch) into one per frame.
+function scheduleGrid() {
+  if (_gridRaf) return;
+  _gridRaf = requestAnimationFrame(() => { _gridRaf = null; drawGrid(gridCells); });
+}
+
 async function loadGrid() {
-  gridCells = await (await fetch(API("/grid"))).json();
-  if (!Array.isArray(gridCells)) gridCells = [];
-  drawGrid(gridCells);
+  try {
+    const cells = await fetchJSON("/grid");
+    gridCells = Array.isArray(cells) ? cells : [];
+    _gridDeltas = null;
+    drawGrid(gridCells);
+  } catch (e) {
+    gridCells = [];
+    setErr(document.getElementById("legend"), t("err_server"));
+  }
 }
 
 // Forecast time slider: 0 = Now, n = +n hours.
@@ -260,15 +372,20 @@ function setForecast(idx) {
   FC_IDX = Math.max(0, Math.min(6, Number(idx) || 0));
   const label = document.getElementById("fc-label");
   if (label) label.textContent = FC_IDX === 0 ? t("now") : `+${FC_IDX}h`;
-  drawGrid(gridCells);
+  const slider = document.getElementById("fc-slider");
+  if (slider) slider.setAttribute("aria-valuetext", label ? label.textContent : "");
+  scheduleGrid();
 }
 
 function togglePickMode(force) {
   PICK_MODE = force === undefined ? !PICK_MODE : !!force;
-  if (PICK_MODE) PICK_POINTS = [];
+  if (PICK_MODE) {
+    PICK_POINTS = [];
+    if (pickLayer) pickLayer.clearLayers();   // drop any stale pins from last time
+  }
   const btn = document.getElementById("btn-pick");
-  if (btn) btn.classList.toggle("active", PICK_MODE);
-  if (PICK_MODE) showPickHint("Click the map to set the start point…");
+  if (btn) { btn.classList.toggle("active", PICK_MODE); btn.setAttribute("aria-pressed", PICK_MODE); }
+  if (PICK_MODE) showPickHint(t("pick_start"));
 }
 
 function showPickHint(msg) {
@@ -288,7 +405,7 @@ function onMapClick(e) {
   }
   if (PICK_POINTS.length === 1) {
     document.getElementById("from").value = val;
-    showPickHint("Now click the end point…");
+    showPickHint(t("pick_end"));
   } else {
     document.getElementById("to").value = val;
     togglePickMode(false);
@@ -309,50 +426,57 @@ function clearRoute() {
 function locateMe() {
   const el = document.getElementById("route-result");
   const show = (html) => { if (el) { el.style.display = "block"; el.innerHTML = html; } };
-  if (!navigator.geolocation) {
-    show(`<span class="err">Geolocation is not supported by this browser.</span>`);
-    return;
-  }
-  show(`<span class="hint">Locating…</span>`);
+  if (!navigator.geolocation) { setErr(el, t("geo_unsupported")); return; }
+  // A new origin invalidates any route drawn for the previous start point.
+  if (routeLayer) routeLayer.clearLayers();
+  togglePickMode(false);
+  show(`<span class="hint">${t("locating")}</span>`);
   navigator.geolocation.getCurrentPosition(async (pos) => {
     const lat = pos.coords.latitude, lon = pos.coords.longitude;
     const val = `${lat.toFixed(4)},${lon.toFixed(4)}`;
     document.getElementById("from").value = val;
     try {
-      const nc = await (await fetch(API(`/aqi?lat=${lat}&lon=${lon}`))).json();
-      if (nc.error) { show(`<span class="err">${nc.error}</span>`); return; }
+      const nc = await fetchJSON(`/aqi?lat=${lat}&lon=${lon}`);
+      if (nc.error) { setErr(el, nc.error); return; }
       if (MAP_READY && meLayer) {
         meLayer.clearLayers();
         L.circleMarker([lat, lon], {
           radius: 8, color: "#fff", weight: 2, fillColor: aqiColor(nc.aqi_now), fillOpacity: 1
-        }).bindPopup(`<b>You are here</b><br>AQI ${nc.aqi_now}<br>${nc.category || ""}`)
+        }).bindPopup(`<b>${t("your_location")}</b><br>AQI ${nc.aqi_now}<br>${nc.category || ""}`)
           .addTo(meLayer).openPopup();
         map.setView([lat, lon], 13);
       }
-      show(`<b>Your location</b> - AQI ${nc.aqi_now} (${nc.category || ""})<br>
-        <span class="hint">Start point set. Now pick a destination and compare routes.</span>`);
+      show(`<b>${t("your_location")}</b> - AQI ${nc.aqi_now} (${nc.category || ""})<br>
+        <span class="hint">${t("start_point_set")}</span>`);
     } catch (e) {
-      show(`<span class="err">Could not load local AQI - is the server running?</span>`);
+      setErr(el, t("err_server"));
     }
   }, (err) => {
-    show(`<span class="err">Location unavailable (${err.message}).</span>`);
+    setErr(el, `${t("geo_unavailable")} (${err.message}).`);
   }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
 }
 
 async function loadStations() {
-  const stations = await (await fetch(API("/stations"))).json();
-  if (!MAP_READY || !Array.isArray(stations)) return;
-  stationLayer.clearLayers();
-  for (const s of stations) {
-    L.circleMarker([s.lat, s.lon], {
-      radius: 6, color: "#fff", weight: 1.5, fillColor: aqiColor(s.aqi), fillOpacity: 1
-    }).bindPopup(`<b>${s.station_id}</b><br>AQI ${s.aqi}<br>PM2.5 ${s.pm25}`).addTo(stationLayer);
-  }
+  try {
+    const stations = await fetchJSON("/stations");
+    if (!MAP_READY || !Array.isArray(stations)) return;
+    stationLayer.clearLayers();
+    for (const s of stations) {
+      L.circleMarker([s.lat, s.lon], {
+        radius: 6, color: "#fff", weight: 1.5, fillColor: aqiColor(s.aqi), fillOpacity: 1
+      }).bindPopup(`<b>${s.station_id}</b><br>AQI ${s.aqi}<br>PM2.5 ${s.pm25}`).addTo(stationLayer);
+    }
+  } catch (e) { /* stations are decorative; ignore */ }
 }
 
 async function loadSchools() {
-  schools = await (await fetch(API("/schools"))).json();
   const sel = document.getElementById("school-select");
+  try {
+    schools = await fetchJSON("/schools");
+  } catch (e) {
+    sel.innerHTML = `<option>${t("err_server")}</option>`;
+    return;
+  }
   if (!Array.isArray(schools)) { sel.innerHTML = ""; return; }
   sel.innerHTML = schools.map(s => `<option value="${s.school_id}">${s.name}</option>`).join("");
   if (MAP_READY) {
@@ -369,27 +493,35 @@ async function loadSchools() {
 
 async function loadSchoolCard(id) {
   const el = document.getElementById("school-card");
-  const card = await (await fetch(API(`/school/${id}/today`))).json();
+  let card;
+  try {
+    card = await fetchJSON(`/school/${id}/today`);
+  } catch (e) {
+    setErr(el, t("err_server"));
+    return;
+  }
   if (card.error || card.aqi_now === undefined) {
     el.innerHTML = `<div class="err">Could not load school: ${card.error || "unknown"}</div>`;
     return;
   }
+  const c = aqiColor(card.aqi_now);
   const chips = (list, cls) => list.map(a => `<span class="chip ${cls}">${a.replace(/_/g, " ")}</span>`).join("");
   const reason = (card.decisions && card.decisions.hold_outdoor_assembly)
     ? card.decisions.hold_outdoor_assembly.reason : "";
+  const none = (cls) => `<span class="chip ${cls}">-</span>`;
   el.innerHTML = `
-    <div><span class="aqi-big" style="color:${aqiColor(card.aqi_now)}">${card.aqi_now}</span>
-      <span class="badge" style="background:${aqiColor(card.aqi_now)};color:#08121f">${card.status}</span></div>
+    <div><span class="aqi-big" style="color:${readable(c)}">${card.aqi_now}</span>
+      <span class="badge" style="background:${c};color:${textOn(c)}">${card.status}</span></div>
     <div style="font-weight:600;margin:6px 0">${card.headline}</div>
-    <div style="color:var(--muted);font-size:11px">Peak next 6h: ${card.aqi_peak} · clean-index ${card.clean_index}</div>
-    <div style="font-size:11px;margin-top:8px;color:var(--muted)">Allowed</div>
-    <div class="chips">${chips(card.allowed, "ok") || "<span class='chip no'>none</span>"}</div>
-    <div style="font-size:11px;margin-top:8px;color:var(--muted)">Blocked by Cedar</div>
-    <div class="chips">${chips(card.blocked, "no") || "<span class='chip ok'>none</span>"}</div>
+    <div style="color:var(--muted);font-size:11px">${t("school_peak")}: ${card.aqi_peak} · clean-index ${card.clean_index}</div>
+    <div style="font-size:11px;margin-top:8px;color:var(--muted)">${t("school_allowed")}</div>
+    <div class="chips">${chips(card.allowed, "ok") || none("no")}</div>
+    <div style="font-size:11px;margin-top:8px;color:var(--muted)">${t("school_blocked")}</div>
+    <div class="chips">${chips(card.blocked, "no") || none("ok")}</div>
     <div style="font-size:11px;color:var(--muted);margin-top:8px">${reason}</div>
     <div class="indoor">
-      <h3>Indoor air advisory (indoor est. AQI ${card.indoor_aqi_estimate})</h3>
-      <ul>${(card.indoor_advisory || []).map(t => `<li>${t}</li>`).join("")}</ul>
+      <h3>${tf("indoor_title", { aqi: card.indoor_aqi_estimate })}</h3>
+      <ul>${(card.indoor_advisory || []).map(x => `<li>${x}</li>`).join("")}</ul>
     </div>`;
 }
 
@@ -401,24 +533,36 @@ function windArrow(deg) {
 
 async function loadEvents() {
   const el = document.getElementById("event-banner");
-  const events = await (await fetch(API("/events"))).json();
+  let events;
+  try {
+    events = await fetchJSON("/events");
+  } catch (e) {
+    el.style.display = "none";
+    return;
+  }
   if (!Array.isArray(events) || !events.length) { el.style.display = "none"; return; }
   el.style.display = "block";
   el.innerHTML = events.map(e => {
     const from = windArrow(e.wind_dir_deg || 0);
     const to = windArrow((e.wind_dir_deg || 0) + 180);
-    return `<b>Stubble-burning spike</b><br>${e.label}<br>
-      <span class="wind">Smoke drifting ${from} &rarr; ${to} &middot; grid AQI elevated downwind</span>`;
+    return `<b>${t("stubble")}</b><br>${e.label}<br>
+      <span class="wind">${tf("wind", { from, to })}</span>`;
   }).join("<hr>");
 }
 
 async function loadAlerts() {
   const el = document.getElementById("alerts");
-  const alerts = await (await fetch(API("/alerts"))).json();
-  if (!Array.isArray(alerts)) { el.textContent = "No alerts yet."; return; }
+  let alerts;
+  try {
+    alerts = await fetchJSON("/alerts");
+  } catch (e) {
+    el.textContent = t("err_server");
+    return;
+  }
+  if (!Array.isArray(alerts)) { el.textContent = t("no_alerts"); return; }
   el.innerHTML = alerts.length
     ? alerts.map(a => `<div class="alert"><b>${a.kind}</b><br>${a.message}</div>`).join("")
-    : "No alerts yet.";
+    : t("no_alerts");
 }
 
 function drawRoute(res) {
@@ -429,17 +573,17 @@ function drawRoute(res) {
       dashArray: mode === "fastest" ? "8 6" : null
     });
     L.polyline(res.fastest.geometry, style("fastest", "#4aa8ff")).addTo(routeLayer)
-      .bindTooltip("Fastest");
+      .bindTooltip(t("fastest"));
     L.polyline(res.cleanest.geometry, style("cleanest", "#35d29e")).addTo(routeLayer)
-      .bindTooltip("Cleanest");
+      .bindTooltip(t("cleanest"));
   }
   const f = res.fastest, c = res.cleanest;
   const row = (m, r) => `<tr><td>${m}</td><td>${(r.distance_m / 1000).toFixed(1)} km</td>
       <td>AQI ${r.avg_aqi}</td><td>clean ${r.clean_index}</td><td>${r.duration_min} min</td></tr>`;
   const el = document.getElementById("route-result");
   el.style.display = "block";
-  el.innerHTML = `<b>Route comparison</b> - winner: <span class="win">${res.winner}</span><br>
-    <table>${row("Fastest", f)}${row("Cleanest", c)}</table>
+  el.innerHTML = `<b>${t("route_title")}</b> - ${t("winner")}: <span class="win">${res.winner}</span><br>
+    <table>${row(t("fastest"), f)}${row(t("cleanest"), c)}</table>
     <div style="margin-top:6px;color:var(--muted)">${res.note}</div>`;
 }
 
@@ -448,57 +592,52 @@ async function compareRoutes() {
   const to = document.getElementById("to").value.trim();
   const el = document.getElementById("route-result");
   el.style.display = "block";
-  let res;
-  try {
-    res = await (await fetch(
-      API(`/route?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`))).json();
-  } catch (e) {
-    el.innerHTML = `<span class="err">Network error - is the server running?</span>`;
-    return;
-  }
-  if (res.error || !res.fastest) {
-    el.innerHTML = `<span class="err">${res.error || "No route found. Use from=lat,lon&to=lat,lon"}</span>`;
-    return;
-  }
-  drawRoute(res);
+  return withBusy(document.getElementById("btn-route"), null, async () => {
+    let res;
+    try {
+      res = await fetchJSON(`/route?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    } catch (e) {
+      setErr(el, t("err_server"));
+      return;
+    }
+    if (res.error || !res.fastest) { setErr(el, res.error || t("no_route")); return; }
+    drawRoute(res);
+  });
 }
 
 async function askAgent() {
   const question = document.getElementById("question").value;
   const engine = document.getElementById("engine") ? document.getElementById("engine").value : "auto";
   const out = document.getElementById("agent-out");
-  out.textContent = "Thinking…";
-  let res;
-  try {
-    res = await (await fetch(API("/agent"), {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, engine })
-    })).json();
-  } catch (e) {
-    out.innerHTML = `<span class="err">Network error - is the server running?</span>`;
-    return;
-  }
-  if (res.error) { out.innerHTML = `<span class="err">${res.error}</span>`; return; }
-  out.innerHTML = `<b>${res.answer}</b>\n\n` +
-    (res.steps || []).map(s => "• " + s).join("\n") +
-    `\n\n(engine: ${res.engine})`;
-  loadAlerts();
+  out.textContent = t("thinking");
+  await withBusy(document.getElementById("btn-ask"), null, async () => {
+    let res;
+    try {
+      res = await fetchJSON("/agent", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, engine })
+      }, 20000);
+    } catch (e) {
+      setErr(out, t("err_server"));
+      return;
+    }
+    if (res.error) { setErr(out, res.error); return; }
+    out.innerHTML = `<b>${res.answer}</b>\n\n` +
+      (res.steps || []).map(s => "• " + s).join("\n") +
+      `\n\n(${t("engine")}: ${res.engine})`;
+    loadAlerts();
+  });
 }
 
 async function runCycle() {
   const btn = document.getElementById("btn-cycle");
-  const original = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Running…";
-  try {
-    await fetch(API("/cycle"), { method: "POST" });
-  } catch (e) {
-    document.getElementById("alerts").innerHTML =
-      `<span class="err">Network error - is the server running?</span>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = original;
-  }
+  await withBusy(btn, t("rl_running"), async () => {
+    try {
+      await fetchJSON("/cycle", { method: "POST" });
+    } catch (e) {
+      document.getElementById("alerts").innerHTML = `<span class="err">${t("err_server")}</span>`;
+    }
+  });
   await refreshAll();
 }
 
@@ -506,19 +645,22 @@ async function submitSubscribe(e) {
   e.preventDefault();
   const data = Object.fromEntries(new FormData(e.target).entries());
   const out = document.getElementById("sub-out");
-  out.textContent = "Subscribing…";
-  let res;
-  try {
-    res = await (await fetch(API("/subscribe"), {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
-    })).json();
-  } catch (err) {
-    out.innerHTML = `<span class="err">Network error - is the server running?</span>`;
-    return;
-  }
-  out.innerHTML = res.error
-    ? `<span class="err">${res.error}</span>`
-    : `Subscribed ${res.name} (${res.kind}) - alert threshold AQI ${res.threshold_aqi}.`;
+  const btn = e.target.querySelector("button[type=submit], button");
+  out.textContent = t("sub_running");
+  await withBusy(btn, null, async () => {
+    let res;
+    try {
+      res = await fetchJSON("/subscribe", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
+      });
+    } catch (err) {
+      setErr(out, t("err_server"));
+      return;
+    }
+    out.innerHTML = res.error
+      ? `<span class="err">${res.error}</span>`
+      : tf("sub_done", { name: res.name, kind: res.kind, threshold: res.threshold_aqi });
+  });
 }
 
 function initAuth() {
