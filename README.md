@@ -386,7 +386,7 @@ endpoints/tables. Defaults target Delhi with a 32×44 grid of 500 m cells (6-hou
 
 ## Limitations (hackathon scope)
 
-- Ingest streams **live OpenAQ v3** by default. Grab a free key at `api.openaq.org/register`
+- Ingest streams **live OpenAQ v3** by default. Grab a free key at `explore.openaq.org/register`
   and set `BB_OPENAQ_API_KEY` (PM2.5 is converted to CPCB-style AQI); without a key, or when
   offline, the feed falls back to the bundled dataset so the app always runs. The header
   badge shows LIVE vs PREVIEW so it is always honest about the data source.
