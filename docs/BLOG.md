@@ -160,7 +160,7 @@ git clone https://github.com/Kartikey-Kesarwani-2005/BreatheBuddy
 cd BreatheBuddy
 python run.py                 # dashboard at http://localhost:8000 (stdlib only)
 python run.py --demo          # CLI walkthrough of every acceptance criterion
-python scripts/selfcheck.py   # 98/98 end-to-end checks
+python scripts/selfcheck.py   # 99/99 end-to-end checks
 ```
 
 To run the cloud version:

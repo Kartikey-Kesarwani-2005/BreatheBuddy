@@ -3,7 +3,7 @@
     {
       "event_id": "stubble_nw_01",
       "type": "stubble_burning",
-      "label": "Stubble burning — Punjab/Haryana belt",
+      "label": "Stubble burning - Punjab/Haryana belt",
       "source_lat": 29.7000,
       "source_lon": 76.3000,
       "intensity": 1.0,

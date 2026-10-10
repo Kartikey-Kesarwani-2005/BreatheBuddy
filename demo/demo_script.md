@@ -29,7 +29,9 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 > "This is a 500-metre hyperlocal grid - not one city number, but street-level air,
 > with a 6-hour nowcast per cell. Ingest runs every 15 minutes. Drag the **forecast
 > slider** at the top of the map and the grid re-renders hour by hour - you can see
-> the plume arrive. Notice the banner: a **stubble-burning spike** - the model adds a
+> the plume arrive. The map has real styles too - **Streets**, **Satellite**,
+> **terrain** - switch any time; the dark style is cached so it even works offline.
+> Notice the banner: a **stubble-burning spike** - the model adds a
 > wind-driven smoke plume to every cell downwind, so the whole north-west lights up.
 > Now look at ABC Public School: AQI 218, **poor**. The card tells the admin exactly
 > what Cedar allows - outdoor assembly and PE are **blocked**, classes move indoors -
@@ -95,7 +97,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 
 ## Backup proof (if a judge asks "does it really run?")
 
-- `python scripts/selfcheck.py` → **98/98** end-to-end checks (policy, API,
+- `python scripts/selfcheck.py` → **99/99** end-to-end checks (policy, API,
   template, stubble plume, Strands SDK, SQS buffer, JWT auth, OpenAQ adapter, no
   out-of-list AWS services).
 - `python run.py --demo` → all five acceptance criteria printed.
@@ -128,7 +130,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 | 2:00 | Type question → **Ask agent** → read answer | agent decides + acts |
 | 2:15 | Alt-tab: open `src/breathebuddy/policies/school_rules.cedar` | "AWS open-source: Cedar" |
 | 2:25 | Alt-tab: open `infra/template.yaml` | Lambda/Step Functions/SNS/Amplify |
-| 2:35 | Alt-tab: terminal `python scripts/selfcheck.py` (98/98) | "it really runs" |
+| 2:35 | Alt-tab: terminal `python scripts/selfcheck.py` (99/99) | "it really runs" |
 | 2:45 | Back to map + school card | Impact + "Har saans, safe." |
 | 3:00 | Stop recording | - |
 

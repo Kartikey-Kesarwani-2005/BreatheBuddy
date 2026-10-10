@@ -33,7 +33,8 @@ const I18N = {
     ask_btn: "Ask agent", sub_title: "Subscribe (vulnerable)",
     kind_rider: "Rider", kind_asthma: "Asthma patient", kind_child: "School child",
     kind_elderly: "Elderly", sub_btn: "Subscribe",
-    ph_name: "Name", ph_phone: "Phone (+91…)", ph_email: "Email", now: "Now"
+    ph_name: "Name", ph_phone: "Phone (+91…)", ph_email: "Email", now: "Now",
+    bm_dark: "Dark", bm_streets: "Streets", bm_sat: "Satellite", bm_terrain: "Terrain"
   },
   hi: {
     run_cycle: "15-मिनट चक्र चलाएँ", sign_in: "साइन इन (Cognito)",
@@ -50,7 +51,8 @@ const I18N = {
     ask_btn: "एजेंट से पूछें", sub_title: "सब्सक्राइब (संवेदनशील)",
     kind_rider: "राइडर", kind_asthma: "अस्थमा रोगी", kind_child: "स्कूली बच्चा",
     kind_elderly: "बुज़ुर्ग", sub_btn: "सब्सक्राइब करें",
-    ph_name: "नाम", ph_phone: "फ़ोन (+91…)", ph_email: "ईमेल", now: "अभी"
+    ph_name: "नाम", ph_phone: "फ़ोन (+91…)", ph_email: "ईमेल", now: "अभी",
+    bm_dark: "डार्क", bm_streets: "सड़कें", bm_sat: "सैटेलाइट", bm_terrain: "भू-आकृति"
   }
 };
 
@@ -76,31 +78,108 @@ function setLang(lang) {
 }
 
 let map, gridLayer, stationLayer, schoolLayer, routeLayer, pickLayer, meLayer;
+let baseLayer, labelLayer;
 let schools = [];
 let gridCells = [];
 let FC_IDX = 0;          // 0 = "Now", 1..6 = forecast hour offset
 let PICK_MODE = false;   // when true, map clicks set route start/end
 let PICK_POINTS = [];
 let MAP_READY = false;
+let currentBasemap = "dark";
+
+// Keyless Esri basemaps. "dark" is cached in frontend/vendor/tiles so the demo
+// works offline; the others are live services that make the map look richer.
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
+const MAP_ATTR = "&copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors";
+const BM_KEY = "bb_basemap_v2"; // remembers the user's explicit map-style pick
+const BASEMAPS = {
+  dark: { url: `${ESRI}/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`,
+          labels: `${ESRI}/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}` },
+  streets: { url: `${ESRI}/World_Street_Map/MapServer/tile/{z}/{y}/{x}` },
+  satellite: { url: `${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`,
+               labels: `${ESRI}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}` },
+  terrain: { url: `${ESRI}/World_Topo_Map/MapServer/tile/{z}/{y}/{x}` }
+};
+
+function makeBaseLayer(name) {
+  if (name === "dark") {
+    const l = L.tileLayer("vendor/tiles/{z}/{x}/{y}.jpg", {
+      attribution: MAP_ATTR, minZoom: 9, maxZoom: 18, maxNativeZoom: 13
+    });
+    // Uncached tile -> live Esri "Dark Gray" server when online.
+    l.on("tileerror", (e) => {
+      if (!e.tile || e.tile.dataset.remote) return;
+      e.tile.dataset.remote = "1";
+      e.tile.src = `${ESRI}/Canvas/World_Dark_Gray_Base/MapServer/tile/${e.coords.z}/${e.coords.y}/${e.coords.x}`;
+    });
+    return l;
+  }
+  const b = BASEMAPS[name] || BASEMAPS.dark;
+  return L.tileLayer(b.url, { attribution: MAP_ATTR, minZoom: 9, maxZoom: 18 });
+}
+
+function makeLabelLayer(name) {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return null;
+  const b = BASEMAPS[name];
+  if (!b || !b.labels) return null;
+  return L.tileLayer(b.labels, { minZoom: 9, maxZoom: 18, pane: "labels" });
+}
+
+function setBasemap(name, persist) {
+  if (!BASEMAPS[name]) name = "dark";
+  if (baseLayer) map.removeLayer(baseLayer);
+  if (labelLayer) { map.removeLayer(labelLayer); labelLayer = null; }
+  baseLayer = makeBaseLayer(name).addTo(map);
+  baseLayer.bringToBack();
+  labelLayer = makeLabelLayer(name);
+  if (labelLayer) labelLayer.addTo(map);
+  currentBasemap = name;
+  // Only remember an explicit pick; the auto default should stay free to change.
+  if (persist !== false) {
+    try { localStorage.setItem(BM_KEY, name); } catch (e) { /* private mode */ }
+  }
+  document.querySelectorAll("#basemaps .bm").forEach(b =>
+    b.classList.toggle("active", b.dataset.bm === name));
+  // Redraw so cell opacity matches the new base (darker map can be more
+  // transparent; a light street map needs slightly stronger cells).
+  if (MAP_READY && gridCells.length) drawGrid(gridCells);
+}
+
+function wireBasemaps() {
+  const btns = document.querySelectorAll("#basemaps .bm");
+  btns.forEach(b => {
+    b.onclick = () => { if (!b.disabled) setBasemap(b.dataset.bm); };
+  });
+  const sync = () => {
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    btns.forEach(b => {
+      const remote = b.dataset.bm !== "dark";
+      b.disabled = offline && remote;
+      b.title = b.disabled ? "Live map needs internet - Dark works offline" : "";
+    });
+  };
+  sync();
+  window.addEventListener("online", sync);
+  window.addEventListener("offline", sync);
+}
 
 function initMap() {
   if (!window.L) throw new Error("Leaflet not loaded");
   map = L.map("map", { preferCanvas: true, zoomControl: true })
     .setView([28.61, 77.19], 11);
-  // Map imagery is cached locally (frontend/vendor/tiles, see
-  // scripts/fetch_tiles.py) so the map works offline. maxNativeZoom lets
-  // Leaflet upscale the cached z13 tiles for deeper zooms; any uncached tile
-  // falls back to the live keyless Esri "Dark Gray" server when online.
-  const tiles = L.tileLayer("vendor/tiles/{z}/{x}/{y}.jpg", {
-    attribution: "&copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
-    minZoom: 9, maxZoom: 18, maxNativeZoom: 13
-  }).addTo(map);
-  tiles.on("tileerror", (e) => {
-    if (!e.tile || e.tile.dataset.remote) return;
-    e.tile.dataset.remote = "1";
-    e.tile.src = "https://server.arcgisonline.com/ArcGIS/rest/services/"
-      + `Canvas/World_Dark_Gray_Base/MapServer/tile/${e.coords.z}/${e.coords.y}/${e.coords.x}`;
-  });
+  // A dedicated pane keeps street/place labels above the basemap but below the
+  // AQI grid (overlay pane), so cells stay readable over the labels.
+  map.createPane("labels");
+  map.getPane("labels").style.zIndex = 350;
+  map.getPane("labels").style.pointerEvents = "none";
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  // Show a real, colorful street map online so the city looks alive. Fall back
+  // to the vendored dark tiles (which need no network) when offline.
+  let saved = offline ? "dark" : "streets";
+  try { saved = localStorage.getItem(BM_KEY) || saved; } catch (e) { /* ignore */ }
+  if (offline) saved = "dark";
+  setBasemap(saved, false);
+  wireBasemaps();
   gridLayer = L.layerGroup().addTo(map);
   stationLayer = L.layerGroup().addTo(map);
   schoolLayer = L.layerGroup().addTo(map);
@@ -163,7 +242,8 @@ function drawGrid(cells) {
       [c.lat - dLat / 2, c.lon - dLon / 2],
       [c.lat + dLat / 2, c.lon + dLon / 2]
     ], {
-      color: "transparent", weight: 0, fillColor: aqiColor(aqiAt(c)), fillOpacity: 0.5,
+      color: "transparent", weight: 0, fillColor: aqiColor(aqiAt(c)),
+      fillOpacity: currentBasemap === "dark" ? 0.5 : 0.62,
       interactive: false
     }).addTo(gridLayer);
   }

@@ -51,6 +51,7 @@ be deployed on AWS.* BreatheBuddy satisfies **both**:
 | 9 | **"Near me"** geolocation → local AQI + route start | `frontend/app.js` |
 | 10 | **Bilingual dashboard** (English ⇄ हिंदी), remembered per browser | `frontend/app.js` |
 | 11 | **OpenAPI 3.0 spec + offline `/docs`** and per-client **write rate limiting** (`429`) | `openapi.py`, `ratelimit.py` |
+| 12 | **Map styles**: Dark (offline) + Streets / Satellite / Terrain (live Esri, keyless) | `frontend/app.js` |
 
 ## Screenshots
 
@@ -127,7 +128,10 @@ python run.py --demo     # or: run the CLI demo of all acceptance criteria
 Open the dashboard, click **Run 15-min cycle**, then **Compare routes** and **Ask agent**.
 The map works **fully offline** - Leaflet and the Delhi basemap tiles are vendored
 in `frontend/vendor/` (re-fetch/refresh tiles with `python scripts/fetch_tiles.py`);
-uncached areas fall back to the live tile server when online.
+uncached areas fall back to the live tile server when online. A **map-style switcher**
+(Dark / Streets / Satellite / Terrain) uses keyless Esri services; online it opens on the
+colorful **Streets** map, and **Dark** (cached, works offline) is used when the browser is
+offline. Your pick is remembered.
 
 ### Optional: real Cedar + Strands agent
 
@@ -151,7 +155,7 @@ The Ask card has an **engine** selector (Auto / Strands + Bedrock / Deterministi
 
 ```bash
 python -m unittest discover -s tests -t . -v   # 52 unit tests
-python scripts/selfcheck.py                     # 98 end-to-end checks (policy, API, Lambda, auth, data source, OpenAPI, template)
+python scripts/selfcheck.py                     # 99 end-to-end checks (policy, API, Lambda, auth, data source, OpenAPI, template)
 ```
 
 CI runs all of the above (plus `cfn-lint` and `node --check`) on every push - see
@@ -334,7 +338,7 @@ python scripts/localstack_cycle.py          # writes S3 object + DDB items + SNS
 | **01 Idea & impact** | One focused problem - *school safety on bad-air days* - solved well: not a vague "air quality app" but a specific rule engine that changes today's schedule for the people exposed (kids, riders, asthma patients). |
 | **02 Built on AWS** | Uses AWS **open source tools** (Strands Agents SDK, Cedar, OpenSearch; SAM CLI, LocalStack locally) **and** is deployable on AWS free tier (Lambda, DynamoDB, S3, SNS, SQS, Step Functions, API Gateway, EventBridge, CloudWatch, Cognito, CloudFront, Route 53, Amplify). |
 | **03 Design & usability** | One screen anyone can pick up: a guided 4-step strip ("Run cycle → pick a school → compare routes → ask the agent"), plain-language decision card ("Outdoor assembly cancelled"), color-coded AQI map, and a subscribe form for non-technical users. |
-| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 98/98, 52 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification, live OpenAQ feed adapter (mock fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green. |
+| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 99/99, 52 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification, live OpenAQ feed adapter (mock fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green. |
 | **05 Demo video** | **3-minute** script covering problem, who it's for, full walkthrough, and where AWS fits - `demo/demo_script.md`. |
 
 > Note from the rules: *there is no live demo - the video is what judges see*, and *local and

@@ -54,7 +54,7 @@ infra/
   handler/app.py            Lambda entry points (same package as local)
   localstack/docker-compose.yml
 scripts/
-  selfcheck.py              end-to-end verification (98 checks)
+  selfcheck.py              end-to-end verification (99 checks)
   fetch_tiles.py            download/refresh the offline map tiles
 tests/                      stdlib unittest suite
 ```

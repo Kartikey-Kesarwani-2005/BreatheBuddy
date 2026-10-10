@@ -1,4 +1,4 @@
-# LocalStack — run the AWS build path on your machine, no AWS account.
+# LocalStack: run the AWS build path on your machine, no AWS account.
 #   docker compose -f infra/localstack/docker-compose.yml up -d
 #   pip install boto3
 #   python scripts/localstack_bootstrap.py

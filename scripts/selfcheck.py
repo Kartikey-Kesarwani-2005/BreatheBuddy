@@ -336,10 +336,12 @@ def main() -> int:
     _readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
     check("README screenshots section", "## Screenshots" in _readme)
     _app = open(os.path.join(ROOT, "frontend", "app.js"), encoding="utf-8").read()
+    _html = open(os.path.join(ROOT, "frontend", "index.html"), encoding="utf-8").read()
     check("forecast slider wired", "setForecast" in _app and "fc-slider" in _app)
     check("map-click routing wired", "onMapClick" in _app and "togglePickMode" in _app)
     check("geolocation 'Near me' wired", "locateMe" in _app and "btn-nearme" in _app)
-    _html = open(os.path.join(ROOT, "frontend", "index.html"), encoding="utf-8").read()
+    check("basemap switcher wired",
+          "setBasemap" in _app and "World_Imagery" in _app and "basemaps" in _html)
     check("bilingual (EN/HI) toggle wired",
           "setLang" in _app and "btn-lang" in _html and "data-i18n" in _html)
 

@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  BreatheBuddy — hyperlocal air-quality buddy. Ingest -> nowcast -> Cedar policy
+  BreatheBuddy: hyperlocal air-quality buddy. Ingest -> nowcast -> Cedar policy
   -> SNS alert, exposed via API Gateway, orchestrated by Step Functions, with a
   web dashboard on Amplify Hosting. Uses only allowed AWS services.
 

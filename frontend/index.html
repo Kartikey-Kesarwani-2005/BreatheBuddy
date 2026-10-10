@@ -50,30 +50,40 @@
 
     <section class="map-wrap">
       <div id="map" aria-label="Hyperlocal air-quality map"></div>
-      <div class="timeline" title="Scrub the 6-hour hyperlocal forecast">
-        <label for="fc-slider" data-i18n="forecast">Forecast</label>
-        <input id="fc-slider" type="range" min="0" max="6" step="1" value="0"
-          aria-label="Forecast hour" />
-        <b id="fc-label" aria-live="polite">Now</b>
-      </div>
-      <div class="route-bar">
-        <div class="field">
-          <label for="from" data-i18n="from_label">From (lat,lon)</label>
-          <input id="from" value="28.6000,77.1000" />
+      <div class="map-top">
+        <div class="map-top-row">
+          <div class="route-bar">
+            <div class="field">
+              <label for="from" data-i18n="from_label">From (lat,lon)</label>
+              <input id="from" value="28.6000,77.1000" />
+            </div>
+            <div class="field">
+              <label for="to" data-i18n="to_label">To (lat,lon)</label>
+              <input id="to" value="28.6000,77.3000" />
+            </div>
+            <button id="btn-route" data-i18n="compare">Compare routes</button>
+            <button id="btn-pick" class="ghost" type="button"
+              title="Click the map to set start, then end" data-i18n="pick">Pick on map</button>
+            <button id="btn-nearme" class="ghost" type="button"
+              title="Start from my current location" data-i18n="near_me">Near me</button>
+            <button id="btn-clear" class="ghost" type="button" data-i18n="clear">Clear</button>
+          </div>
+          <div class="timeline" title="Scrub the 6-hour hyperlocal forecast">
+            <label for="fc-slider" data-i18n="forecast">Forecast</label>
+            <input id="fc-slider" type="range" min="0" max="6" step="1" value="0"
+              aria-label="Forecast hour" />
+            <b id="fc-label" aria-live="polite">Now</b>
+          </div>
+          <div class="basemaps" id="basemaps" role="group" aria-label="Map style">
+            <button type="button" class="bm active" data-bm="dark" data-i18n="bm_dark">Dark</button>
+            <button type="button" class="bm" data-bm="streets" data-i18n="bm_streets">Streets</button>
+            <button type="button" class="bm" data-bm="satellite" data-i18n="bm_sat">Satellite</button>
+            <button type="button" class="bm" data-bm="terrain" data-i18n="bm_terrain">Terrain</button>
+          </div>
         </div>
-        <div class="field">
-          <label for="to" data-i18n="to_label">To (lat,lon)</label>
-          <input id="to" value="28.6000,77.3000" />
-        </div>
-        <button id="btn-route" data-i18n="compare">Compare routes</button>
-        <button id="btn-pick" class="ghost" type="button"
-          title="Click the map to set start, then end" data-i18n="pick">Pick on map</button>
-        <button id="btn-nearme" class="ghost" type="button"
-          title="Start from my current location" data-i18n="near_me">Near me</button>
-        <button id="btn-clear" class="ghost" type="button" data-i18n="clear">Clear</button>
+        <div id="event-banner" class="event-banner" style="display:none" role="status"></div>
       </div>
       <div id="route-result" class="route-result" role="status" aria-live="polite"></div>
-      <div id="event-banner" class="event-banner" style="display:none" role="status"></div>
       <div class="legend" id="legend" aria-label="Air quality index colour scale"></div>
     </section>
 
