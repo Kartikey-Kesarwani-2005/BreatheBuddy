@@ -12,6 +12,7 @@ so the model can later be swapped for a trained endpoint without API changes.
 from __future__ import annotations
 
 import json
+import logging
 import math
 from datetime import UTC, datetime, timedelta
 
@@ -19,6 +20,8 @@ from . import config
 from .geo import bearing_deg, haversine_m, offset_latlon
 from .models import GridCell, Reading
 from .store import STORE, Store
+
+log = logging.getLogger("breathebuddy.nowcast")
 
 # AQI is bounded 0..500 by convention; models blend + plume below stay in range.
 IST_OFFSET = timedelta(hours=5, minutes=30)

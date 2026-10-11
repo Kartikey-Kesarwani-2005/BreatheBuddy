@@ -245,8 +245,9 @@ def ask(question: str, prefer_strands: bool | None = None) -> dict:
                         "engine": "strands"}
             except Exception as exc:  # pragma: no cover - depends on model/creds
                 log.warning("Strands invocation failed (%s); using SimpleAgent.", exc)
-    
+
     return SimpleAgent().ask(question)
+
 
 def identify_pollution_source(aqi: float, wind_speed: float, wind_dir: float,
     events: list | None = None) -> str:
@@ -278,5 +279,3 @@ def identify_pollution_source(aqi: float, wind_speed: float, wind_dir: float,
     if not sources:
         sources.append('unknown')
     return ' + '.join(sources[:2])
-
-    return SimpleAgent().ask(question)
