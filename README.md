@@ -209,9 +209,12 @@ Tools: `get_aqi`, `predict_aqi`, `find_cleanest_route`, `check_school_policy(Ced
 ## Cedar school rules (`src/breathebuddy/policies/school_rules.cedar`)
 
 ```
-AQI > 150  -> outdoor assembly requires masks + time limit (forbid without)
-AQI > 200  -> cancel outdoor assembly / move PE indoors
-AQI > 300  -> close school / remote learning (indoor_activities permitted)
+AQI ≤ 150        -> outdoor assembly allowed
+AQI ≥ 151        -> outdoor assembly cancelled (no mask exception)
+AQI ≤ 150        -> outdoor PE allowed
+AQI 151-200      -> PE indoors only; with masks + ≤60 min limit (forbid without)
+AQI > 200        -> PE forbidden (move indoors)
+AQI > 300        -> close school / remote learning (indoor_activities permitted)
 ```
 
 Cedar uses **default-deny**; a `forbid` always overrides a `permit`. The built-in

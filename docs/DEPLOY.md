@@ -75,6 +75,24 @@ mv requirements-full.txt requirements.txt
 The deployed pipeline still runs (it falls back to the built-in Cedar evaluator and
 the deterministic agent exactly like the offline demo).
 
+### Secrets hygiene
+
+`infra/template.yaml` passes every `BB_*` setting through Lambda environment
+variables, so the container **does not need** a local `.env`. But each Lambda
+uses `CodeUri: ../`, so `sam build` packs the whole checkout — **including a
+`.env` sitting in the repo root — into the artifact**. Before you build:
+
+```bash
+# remove the local key so it can never bake into a Lambda bundle
+mv .env .env.local         # or: copy the key to AWS Secrets Manager
+sam build -t infra/template.yaml
+# ... deploy ...
+mv .env.local .env         # restore for local `python run.py`
+```
+
+OpenAQ v3 also works anonymously (rate-limited), so an unset
+`BB_OPENAQ_API_KEY` is fine for a demo. `.env` is gitignored either way.
+
 ## 3. What gets created
 
 | Layer | Resources |
