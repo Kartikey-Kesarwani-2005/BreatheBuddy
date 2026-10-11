@@ -245,4 +245,38 @@ def ask(question: str, prefer_strands: bool | None = None) -> dict:
                         "engine": "strands"}
             except Exception as exc:  # pragma: no cover - depends on model/creds
                 log.warning("Strands invocation failed (%s); using SimpleAgent.", exc)
+    
+    return SimpleAgent().ask(question)
+
+def identify_pollution_source(aqi: float, wind_speed: float, wind_dir: float,
+    events: list | None = None) -> str:
+    """Identify likely pollution source based on AQI, wind, and events.
+
+    Returns one of: 'traffic', 'stubble_burning', 'dust_construction',
+    'industrial', 'accumulation', or 'unknown'.
+    """
+    sources = []
+    # Check stubble burning events
+    if events:
+        for e in events:
+            if e.get("type") == "stubble_burning":
+                sources.append("stubble_burning")
+                break
+    # Wind-directed source inference
+    if wind_speed is not None:
+        if wind_speed > 10:
+            sources.append('dust_construction')
+        elif wind_speed < 3:
+            sources.append('accumulation')
+    # AQI-level inference
+    if aqi > 200:
+        sources.append('industrial')
+    elif aqi > 150:
+        sources.append('traffic')
+    elif aqi > 100:
+        sources.append('traffic')
+    if not sources:
+        sources.append('unknown')
+    return ' + '.join(sources[:2])
+
     return SimpleAgent().ask(question)

@@ -26,6 +26,7 @@ class Store:
         self.alerts: list[Alert] = []
         self.buffer: list[dict[str, Any]] = []      # SQS-style delivery buffer
         self._last_alert: dict[str, float] = {}  # (target:kind) -> epoch seconds
+        self.last_aqi_avg: float = 0.0  # average AQI from last ingest cycle
         self.aws = None  # lazily attached AWS bridge
 
     # -- bootstrap --------------------------------------------------------
@@ -113,7 +114,7 @@ class Store:
 
     def recent_alerts(self, limit: int = 50) -> list[Alert]:
         with self._lock:
-            return self.alerts[-limit:][::-1]
+            return self.alerts[-limit:][::-1] if limit > 0 else []
 
     # -- SQS-style delivery buffer ----------------------------------------
     def buffer_message(self, message: dict[str, Any]) -> dict[str, Any]:

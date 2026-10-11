@@ -50,9 +50,14 @@ def current(force: bool = False) -> dict | None:
         with urllib.request.urlopen(req, timeout=config.WEATHER_TIMEOUT_S) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         cur = data.get("current") or {}
+        # Require wind fields to be present; silently falling back to 0.0 would
+        # lower all AQI via _dispersion_factor (max 1.15 when wind_speed=0).
+        if "wind_speed_10m" not in cur or "wind_direction_10m" not in cur:
+            log.warning("weather: missing wind fields in Open-Meteo response")
+            return _CACHE["data"]
         out = {
-            "wind_speed": round(float(cur.get("wind_speed_10m") or 0.0), 2),
-            "wind_dir": round(float(cur.get("wind_direction_10m") or 0.0), 1),
+            "wind_speed": round(float(cur["wind_speed_10m"]), 2),
+            "wind_dir": round(float(cur["wind_direction_10m"]), 1),
             "temperature": round(float(cur.get("temperature_2m") or 0.0), 1),
             "humidity": round(float(cur.get("relative_humidity_2m") or 0.0), 1),
             "source": "open-meteo",

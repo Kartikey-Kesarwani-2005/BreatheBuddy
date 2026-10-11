@@ -71,7 +71,11 @@ def load_events(active_only: bool = True) -> list[dict]:
     """Read environmental events (stubble burning etc.) from data/events.json."""
     if not config.USE_STUBBLE or not config.EVENTS_FILE.exists():
         return []
-    data = json.loads(config.EVENTS_FILE.read_text("utf-8"))
+    try:
+        data = json.loads(config.EVENTS_FILE.read_text("utf-8"))
+    except (json.JSONDecodeError, ValueError):
+        log.warning("nowcast: failed to parse events.json, treating as no events")
+        return []
     events = data.get("events", [])
     return [e for e in events if e.get("active", True)] if active_only else events
 
@@ -133,14 +137,14 @@ def nowcast_point(lat: float, lon: float, store: Store | None = None) -> dict:
     ranked = sorted(cells.values(), key=lambda c: haversine_m(lat, lon, c.lat, c.lon))
     near = ranked[:4]
     if not near:
-        # No grid at all (never ran a cycle): report a neutral default instead
-        # of dividing by zero.
+        # No grid at all (never ran a cycle): report a conservative value instead
+        # of claiming "air quality is good" (aqi_now=0).
         return {
             "lat": round(lat, 6),
             "lon": round(lon, 6),
-            "aqi_now": 0.0,
-            "aqi_forecast": [0.0] * config.FORECAST_HOURS,
-            "clean_index": clean_index(0),
+            "aqi_now": 150.0,
+            "aqi_forecast": [150.0] * config.FORECAST_HOURS,
+            "clean_index": clean_index(150.0),
             "nearest_cell": None,
             "engine": "empty",
         }

@@ -258,6 +258,12 @@ def ingest_once(store: Store | None = None) -> dict:
         from .awsio import AWSBridge
         store.attach_aws(AWSBridge())
     n = store.put_readings(readings)
+    # Compute average AQI from this cycle's readings for trend tracking
+    if readings:
+        avg_aqi = round(sum(r.aqi for r in readings) / len(readings), 1)
+    else:
+        avg_aqi = 0.0
+    store.last_aqi_avg = avg_aqi
     summary = {
         "ingested": n,
         "source": LAST_SOURCE,
@@ -266,6 +272,7 @@ def ingest_once(store: Store | None = None) -> dict:
         "weather": LAST_WEATHER,
         "stations": [r.station_id for r in readings],
         "elapsed_ms": round((time.time() - t0) * 1000, 1),
+        "avg_aqi": avg_aqi,
     }
     log.info("ingest: %s stations in %sms", n, summary["elapsed_ms"])
     return summary

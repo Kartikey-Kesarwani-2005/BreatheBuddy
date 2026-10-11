@@ -38,10 +38,10 @@ class TestNowcast(unittest.TestCase):
         self.assertEqual(_clamp_aqi(999), 500.0)
 
     def test_empty_grid_returns_neutral(self):
-        # No grid data at all -> a neutral response, no division by zero.
+        # No grid data at all -> a conservative default (moderate AQI), not "good").
         with mock.patch("breathebuddy.nowcast.build_grid", return_value={}):
             nc = nowcast_point(28.6, 77.2, Store())
-        self.assertEqual(nc["aqi_now"], 0.0)
+        self.assertEqual(nc["aqi_now"], 150.0)
         self.assertEqual(nc["engine"], "empty")
         self.assertEqual(len(nc["aqi_forecast"]), config.FORECAST_HOURS)
 
