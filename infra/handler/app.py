@@ -36,6 +36,9 @@ from breathebuddy.store import STORE  # noqa: E402
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 
+# Mirror the local server's request-size guard (API Gateway also caps payloads).
+MAX_BODY = 256 * 1024
+
 
 def _boot():
     bootstrap()  # seeds mock data + builds grid; use_aws comes from BB_USE_AWS env
@@ -113,6 +116,10 @@ def lambda_api(event, context):
     _boot()
     method = event.get("httpMethod", "GET")
     path = event.get("path", "/")
+    # Accept the same /api/* route aliases as the local HTTP server, so a single
+    # client (and the OpenAPI spec) works against both.
+    if path == "/api" or path.startswith("/api/"):
+        path = path[4:] or "/"
     q = {k: (v[0] if isinstance(v, list) else v)
          for k, v in (event.get("queryStringParameters") or {}).items()}
     try:
@@ -125,7 +132,10 @@ def lambda_api(event, context):
                                  {"Retry-After": str(WRITE_LIMITER.window_s)})
             if not _authorized(event):
                 return _response(401, {"error": "unauthorized"})
-        body = json.loads(event.get("body") or "{}")
+        raw_body = event.get("body") or "{}"
+        if len(raw_body) > MAX_BODY:
+            return _response(413, {"error": "request too large"})
+        body = json.loads(raw_body)
         if not isinstance(body, dict):
             return _response(400, {"error": "body must be a JSON object"})
 

@@ -701,7 +701,12 @@ function initAuth() {
   // Start Cognito OAuth flow: redirect to hosted UI, then parse token from hash on return.
   btn.onclick = () => {
     const redirectUri = window.location.origin + window.location.pathname;
-    window.location.href = `${CFG.cognito.hostedUi}?response_type=token&client_id=${CFG.cognito.client_id}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    // Cognito's hosted UI lives under /login and requires an explicit scope.
+    const base = String(CFG.cognito.hostedUi).replace(/\/+$/, "");
+    const loginUrl = /\/login$/.test(base) ? base : base + "/login";
+    const scope = encodeURIComponent("openid email profile");
+    window.location.href = `${loginUrl}?response_type=token&client_id=${CFG.cognito.client_id}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
   };
 }
 

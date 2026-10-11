@@ -114,24 +114,40 @@ aws s3 sync frontend/ s3://<SiteBucketName>/ --exclude "*.map"
 aws cloudfront create-invalidation --distribution-id <dist-id> --paths "/*"
 ```
 
-**c. Point the dashboard at the API.** Edit `frontend/amplify-config.js` and set
-`apiBase` to `<ApiUrl>`, then re-sync:
+**c. Point the dashboard at the API.** Edit `frontend/amplify-config.js`, set
+`apiBase` to `<ApiUrl>`, and (to enable sign-in) `cognito` from the
+`CognitoHostedUiUrl` and `UserPoolClientId` outputs, then re-sync:
 
 ```js
-window.BB_CONFIG = { apiBase: "https://<id>.execute-api.ap-south-1.amazonaws.com/prod", cognito: null };
+window.BB_CONFIG = {
+  apiBase: "https://<id>.execute-api.ap-south-1.amazonaws.com/prod",
+  cognito: {
+    hostedUi: "<CognitoHostedUiUrl>",   // https://<prefix>.auth.<region>.amazoncognito.com
+    client_id: "<UserPoolClientId>"
+  }
+};
 ```
 
 (Alternatively, connect the repo in **AWS Amplify Hosting** - `amplify.yml` at the
 repo root is already configured to publish `frontend/`.)
 
-**d. Optional - password sign-in.** `RequireAuth` is `false` by default so the demo
-works without a login. To turn on the gate, create a user and redeploy with
-`RequireAuth=true`:
+**d. Optional - sign-in.** `RequireAuth` is `false` by default so the demo works
+without a login. The template already provisions the Cognito hosted UI (the
+`CognitoHostedUiUrl` output) with an implicit OAuth flow, and the dashboard
+redirects to it and returns with an access token in the URL hash. To enforce auth:
 
 ```bash
+# 1. fill `cognito` in frontend/amplify-config.js (see step c) and re-sync
+# 2. create a user
 aws cognito-idp admin-create-user --user-pool-id <UserPoolId> --username you@example.com
+# 3. redeploy with auth on
 sam deploy -t infra/template.yaml --parameter-overrides RequireAuth=true
 ```
+
+The client's callback/logout URLs default to the CloudFront site (`SiteUrl`) and
+follow a custom `DomainName` automatically. If you host the dashboard on Amplify
+Hosting instead, add that domain to the user-pool client's `CallbackURLs`.
+Sign-in returns an access token that the API verifies against the pool's JWKS.
 
 ## 5. Verify the deployment
 

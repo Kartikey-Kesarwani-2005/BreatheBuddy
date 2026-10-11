@@ -91,6 +91,10 @@ class Store:
     def add_alert(self, alert: Alert) -> Alert:
         with self._lock:
             self.alerts.append(alert)
+            # Bound memory in a long-running process: /alerts only ever serves
+            # the most recent entries, so keeping every alert ever created is
+            # unnecessary (DynamoDB holds the durable history on AWS).
+            self.alerts = self.alerts[-500:]
             self._append_outbox(alert)
             if self.aws:
                 self.aws.put_alert(alert)
