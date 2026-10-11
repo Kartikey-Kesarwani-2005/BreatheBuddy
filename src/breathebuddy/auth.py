@@ -44,21 +44,35 @@ def _signing_key(token: str):
     return jwt.PyJWKClient(jwks_url()).get_signing_key_from_jwt(token)
 
 
+def _audience_ok(claims: dict) -> bool:
+    """Reject JWTs minted for a different app client.
+
+    Cognito puts the app-client id in ``aud`` for **ID** tokens and in
+    ``client_id`` for **access** tokens. The browser's implicit flow returns an
+    access token, so both shapes are accepted here. A blank client id skips the
+    audience check (the issuer is still enforced).
+    """
+    client = config.COGNITO_CLIENT_ID
+    if not client:
+        return True
+    if claims.get("token_use") == "access":
+        return claims.get("client_id") == client
+    aud = claims.get("aud")
+    auds = aud if isinstance(aud, list) else [aud]
+    return client in auds
+
+
 def verify_token(token: str) -> dict | None:
     """Return decoded claims when the token is valid, otherwise ``None``."""
     if not token:
         return None
-    # If a pool is configured, enforce JWT signature verification.
-    # If no pool is configured, dev mode: any bearer token is accepted
-    # (keeps the offline demo friction-free), regardless of REQUIRE_AUTH.
+    # If a pool is configured, enforce JWT signature verification. If no pool is
+    # configured, dev mode: presence is accepted so the offline demo stays
+    # friction-free. NOTE: this means BB_REQUIRE_AUTH on its own is *not* a
+    # security boundary -- configure BB_COGNITO_USER_POOL_ID (or a JWKS URL /
+    # issuer) to actually verify tokens.
     if not (config.COGNITO_USER_POOL_ID or config.COGNITO_JWKS_URL or config.COGNITO_ISSUER):
-        # No pool at all → dev mode: presence accepted
         return _claims_local()
-    # Pool IS configured → require valid JWT
-    if not config.REQUIRE_AUTH:
-        # Auth is optional even with a pool configured; presence is enough
-        # but we still try verification if PyJWT is available
-        pass  # fall through to verification below
     try:
         import jwt
     except ImportError:
@@ -71,13 +85,16 @@ def verify_token(token: str) -> dict | None:
             log.warning("auth: token signed with unsupported alg %r", header.get("alg"))
             return None
         signing = _signing_key(token)
-        return jwt.decode(
+        claims = jwt.decode(
             token, signing.key,
             algorithms=list(_ALLOWED_ALGS),
-            audience=config.COGNITO_CLIENT_ID or None,
             issuer=issuer() or None,
-            options={"verify_aud": bool(config.COGNITO_CLIENT_ID)},
+            options={"verify_aud": False},   # audience checked below
         )
+        if not _audience_ok(claims):
+            log.warning("auth: token audience does not match the app client")
+            return None
+        return claims
     except Exception as exc:  # noqa: BLE001 - any failure means unauthorised
         log.warning("auth: token rejected (%s)", exc)
         return None

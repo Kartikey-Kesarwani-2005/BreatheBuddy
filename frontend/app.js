@@ -148,7 +148,15 @@ async function fetchJSON(path, opts = {}, timeoutMs = 8000) {
   }
 }
 
-function setErr(el, msg) { if (el) el.innerHTML = `<span class="err">${msg}</span>`; }
+// Escape untrusted text before putting it in innerHTML. Server errors, the
+// subscriber name, alert bodies and LLM output are not HTML.
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function setErr(el, msg) { if (el) el.innerHTML = `<span class="err">${escapeHtml(msg)}</span>`; }
 
 // Disable a button while an async action runs (prevents double submit).
 async function withBusy(btn, label, fn) {
@@ -477,7 +485,7 @@ async function loadStations() {
     for (const s of stations) {
       L.circleMarker([s.lat, s.lon], {
         radius: 6, color: "#fff", weight: 1.5, fillColor: aqiColor(s.aqi), fillOpacity: 1
-      }).bindPopup(`<b>${s.station_id}</b><br>AQI ${s.aqi}<br>PM2.5 ${s.pm25}`).addTo(stationLayer);
+      }).bindPopup(`<b>${escapeHtml(s.station_id)}</b><br>AQI ${escapeHtml(s.aqi)}<br>PM2.5 ${escapeHtml(s.pm25)}`).addTo(stationLayer);
     }
   } catch (e) { /* stations are decorative; ignore */ }
 }
@@ -491,12 +499,13 @@ async function loadSchools() {
     return;
   }
   if (!Array.isArray(schools)) { sel.innerHTML = ""; return; }
-  sel.innerHTML = schools.map(s => `<option value="${s.school_id}">${s.name}</option>`).join("");
+  sel.innerHTML = schools.map(s =>
+    `<option value="${escapeHtml(s.school_id)}">${escapeHtml(s.name)}</option>`).join("");
   if (MAP_READY) {
     schoolLayer.clearLayers();
     for (const s of schools) {
       L.marker([s.lat, s.lon]).bindPopup(
-        `<b>${s.name}</b><br>${s.students} students`).addTo(schoolLayer)
+        `<b>${escapeHtml(s.name)}</b><br>${escapeHtml(s.students)} students`).addTo(schoolLayer)
         .on("click", () => loadSchoolCard(s.school_id));
     }
   }
@@ -574,7 +583,7 @@ async function loadAlerts() {
   }
   if (!Array.isArray(alerts)) { el.textContent = t("no_alerts"); return; }
   el.innerHTML = alerts.length
-    ? alerts.map(a => `<div class="alert"><b>${a.kind}</b><br>${a.message}</div>`).join("")
+    ? alerts.map(a => `<div class="alert"><b>${escapeHtml(a.kind)}</b><br>${escapeHtml(a.message)}</div>`).join("")
     : t("no_alerts");
 }
 
@@ -635,9 +644,9 @@ async function askAgent() {
       return;
     }
     if (res.error) { setErr(out, res.error); return; }
-    out.innerHTML = `<b>${res.answer}</b>\n\n` +
-      (res.steps || []).map(s => "• " + s).join("\n") +
-      `\n\n(${t("engine")}: ${res.engine})`;
+    out.innerHTML = `<b>${escapeHtml(res.answer)}</b>\n\n` +
+      (res.steps || []).map(s => "• " + escapeHtml(s)).join("\n") +
+      `\n\n(${t("engine")}: ${escapeHtml(res.engine)})`;
     loadAlerts();
   });
 }
@@ -648,7 +657,7 @@ async function runCycle() {
     try {
       await fetchJSON("/cycle", { method: "POST" });
     } catch (e) {
-      document.getElementById("alerts").innerHTML = `<span class="err">${e.message || t("err_server")}</span>`;
+      document.getElementById("alerts").innerHTML = `<span class="err">${escapeHtml(e.message || t("err_server"))}</span>`;
     }
   });
   await refreshAll();
@@ -671,8 +680,8 @@ async function submitSubscribe(e) {
       return;
     }
     out.innerHTML = res.error
-      ? `<span class="err">${res.error}</span>`
-      : tf("sub_done", { name: res.name, kind: res.kind, threshold: res.threshold_aqi });
+      ? `<span class="err">${escapeHtml(res.error)}</span>`
+      : tf("sub_done", { name: escapeHtml(res.name), kind: escapeHtml(res.kind), threshold: res.threshold_aqi });
   });
 }
 
@@ -697,14 +706,16 @@ function initAuth() {
 }
 
 function wireControls() {
-  initAuth();
-  // Parse Cognito token from URL hash (set by redirect after auth)
-  const hash = location.hash.match(/access_token=([^&]+)/);
-  if (hash && !AUTH_TOKEN) {
-    AUTH_TOKEN = hash[1];
-    btn.textContent = "Signed in";
-    btn.disabled = true;
+  // Parse a Cognito token from the URL hash (set by the hosted-UI redirect)
+  // BEFORE initAuth(), so the auth button reflects the signed-in state. The
+  // token is then stripped from the address bar.
+  const auth = location.hash.match(/access_token=([^&]+)/);
+  if (auth && !AUTH_TOKEN) {
+    AUTH_TOKEN = auth[1];
+    try { history.replaceState(null, "", location.pathname + location.search); }
+    catch (e) { /* history API unavailable */ }
   }
+  initAuth();
   const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   bind("btn-route", compareRoutes);
   bind("btn-pick", () => togglePickMode());

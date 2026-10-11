@@ -19,7 +19,7 @@ from breathebuddy import agent as agent_mod  # noqa: E402
 from breathebuddy import alerts as alerting  # noqa: E402
 from breathebuddy import auth, config, openapi  # noqa: E402
 from breathebuddy.geo import valid_latlon  # noqa: E402
-from breathebuddy.ingest import ingest_once  # noqa: E402
+from breathebuddy.ingest import effective_source, ingest_once  # noqa: E402
 from breathebuddy.nowcast import build_grid  # noqa: E402
 from breathebuddy.ratelimit import WRITE_LIMITER  # noqa: E402
 from breathebuddy.routing import find_routes  # noqa: E402
@@ -130,7 +130,8 @@ def lambda_api(event, context):
             return _response(400, {"error": "body must be a JSON object"})
 
         if method == "GET" and path == "/health":
-            return _response(200, {"ok": True, "city": config.CITY_NAME})
+            return _response(200, {"ok": True, "city": config.CITY_NAME,
+                                   "data_source": effective_source()})
         if method == "GET" and path == "/openapi.json":
             return _response(200, openapi.SPEC)
         if method == "GET" and path == "/docs":

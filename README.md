@@ -153,8 +153,8 @@ The Ask card has an **engine** selector (Auto / Strands + Bedrock / Deterministi
 ### Tests
 
 ```bash
-python -m unittest discover -s tests -t . -v   # 52 unit tests
-python scripts/selfcheck.py                     # 99 end-to-end checks (policy, API, Lambda, auth, data source, OpenAPI, template)
+python -m unittest discover -s tests -t . -v   # 65 unit tests
+python scripts/selfcheck.py                     # 100 end-to-end checks (policy, API, Lambda, auth, data source, OpenAPI, template)
 ```
 
 CI runs all of the above (plus `cfn-lint` and `node --check`) on every push - see
@@ -175,7 +175,7 @@ CI runs all of the above (plus `cfn-lint` and `node --check`) on every push - se
 | GET | `/openapi.json`, `/docs` | OpenAPI 3.0 spec + a dependency-free docs page |
 | POST | `/cycle` | Run ingest → nowcast → policy → alert once |
 
-Write endpoints (`/subscribe`, `/cycle`) require a Cognito bearer token when
+Write endpoints (`/subscribe`, `/cycle`, `/agent`) require a Cognito bearer token when
 `BB_REQUIRE_AUTH=true`. Locally, a token is accepted on presence; when
 `BB_COGNITO_USER_POOL_ID` is set the JWT signature is **verified against the
 pool's JWKS** (`src/breathebuddy/auth.py`, needs `pip install PyJWT cryptography`);
@@ -242,7 +242,7 @@ BreatheBuddy/
 │   ├── handler/app.py
 │   └── localstack/docker-compose.yml
 ├── scripts/                   # fetch_tiles.py, selfcheck.py, LocalStack bootstrap + cycle
-├── tests/                     # stdlib unittest (57 tests)
+├── tests/                     # stdlib unittest (65 tests)
 ├── docs/ARCHITECTURE.md       # code map + request lifecycle (start here)
 ├── docs/DESIGN_NOTES.md       # the "why" behind the non-obvious choices
 ├── docs/DEPLOY.md             # step-by-step AWS SAM deploy + teardown
@@ -293,7 +293,7 @@ Step Functions, EventBridge, IAM, CloudWatch, Cognito, CloudFront, Route 53**.
    ```
 5. **Cognito auth (optional but wired)** - the template provisions a Cognito User Pool + client
    (outputs `UserPoolId`, `UserPoolClientId`). Deploy with `RequireAuth=true` to require a bearer
-   token on `/subscribe` and `/cycle`; the deployed Lambda verifies the JWT against the pool's JWKS.
+   token on `/subscribe`, `/cycle` and `/agent`; the deployed Lambda verifies the JWT against the pool's JWKS.
 6. **Email alerts (optional)** - redeploy with `AlertEmail=you@example.com` to subscribe it to the
    SNS topic and receive real alert emails.
 7. **SageMaker nowcast (optional)** - deploy a model endpoint and redeploy with
@@ -337,7 +337,7 @@ python scripts/localstack_cycle.py          # writes S3 object + DDB items + SNS
 | **01 Idea & impact** | One focused problem - *school safety on bad-air days* - solved well: not a vague "air quality app" but a specific rule engine that changes today's schedule for the people exposed (kids, riders, asthma patients). |
 | **02 Built on AWS** | Uses AWS **open source tools** (Strands Agents SDK, Cedar; SAM CLI, LocalStack locally) **and** is deployable on AWS free tier (Lambda, DynamoDB, S3, SNS, SQS, Step Functions, API Gateway, EventBridge, CloudWatch, Cognito, CloudFront, Route 53, Amplify). |
 | **03 Design & usability** | One screen anyone can pick up: a guided 4-step strip ("Run cycle → pick a school → compare routes → ask the agent"), plain-language decision card ("Outdoor assembly cancelled"), color-coded AQI map, and a subscribe form for non-technical users. |
-| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 100/100, 57 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification (RS256/ES256, fail-closed), live OpenAQ v3 feed (bundled offline fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green (ruff + coverage). |
+| **04 Execution** | Everything **runs**, not "almost": `scripts/selfcheck.py` = 100/100, 65 unit tests, real Cedar engine active, Strands Agents SDK agent builds, SQS buffer producer+consumer, Cognito JWT verification (RS256/ES256; access + ID tokens), live OpenAQ v3 feed (bundled offline fallback), forecast time-slider + map-click routing, live HTTP API + dashboard, offline map, alert de-duplication, input validation, CI green (ruff + coverage). |
 | **05 Demo video** | **3-minute** script covering problem, who it's for, full walkthrough, and where AWS fits - `demo/demo_script.md`. |
 
 > Note from the rules: *there is no live demo - the video is what judges see*, and *local and

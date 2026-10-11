@@ -85,6 +85,30 @@ class TestAuthJwt(unittest.TestCase):
         with self._patch_signing():
             self.assertIsNone(auth.verify_token(self._token(iss="https://evil.test")))
 
+    def _access_token(self, **claims):
+        base = {"sub": "user-1", "client_id": "client-123", "token_use": "access",
+                "iss": "https://issuer.test", "exp": int(time.time()) + 3600}
+        base.update(claims)
+        return self.jwt.encode(base, self.private_key, algorithm="RS256",
+                               headers={"kid": "key-1"})
+
+    def test_cognito_access_token_accepted(self):
+        # The browser implicit flow returns an *access* token (client id in
+        # `client_id`, no `aud`); it must still verify.
+        with self._patch_signing():
+            claims = auth.verify_token(self._access_token())
+        self.assertIsNotNone(claims)
+        self.assertEqual(claims["client_id"], "client-123")
+
+    def test_access_token_wrong_client_rejected(self):
+        with self._patch_signing():
+            self.assertIsNone(auth.verify_token(self._access_token(client_id="someone-else")))
+
+    def test_id_token_without_aud_rejected(self):
+        # An ID token must carry `aud` == client id; a missing/blank aud fails.
+        with self._patch_signing():
+            self.assertIsNone(auth.verify_token(self._token(aud=None)))
+
     def test_bad_signature_rejected(self):
         from cryptography.hazmat.primitives.asymmetric import rsa
         other = rsa.generate_private_key(public_exponent=65537, key_size=2048)

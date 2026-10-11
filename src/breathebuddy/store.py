@@ -8,6 +8,8 @@ through the bridge -- callers don't change either way.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import threading
 import time
 from typing import Any
@@ -104,11 +106,20 @@ class Store:
                 except (json.JSONDecodeError, ValueError, TypeError):
                     existing = []
             existing.append(alert.to_dict())
-            # Write atomically: temp file + os.replace
-            import tempfile, os
-            tmp = config.OUTBOX.with_suffix(".tmp")
-            tmp.write_text(json.dumps(existing[-200:], indent=2), "utf-8")
-            os.replace(str(tmp), str(config.OUTBOX))
+            # Write atomically: a unique temp file in the same directory, then
+            # os.replace (atomic on POSIX). The temp file is always removed, so
+            # a concurrent reader never sees a half-written outbox.
+            fd, tmp_name = tempfile.mkstemp(
+                dir=str(config.OUTBOX.parent), prefix=".alerts-", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    fh.write(json.dumps(existing[-200:], indent=2))
+                os.replace(tmp_name, str(config.OUTBOX))
+            finally:
+                try:
+                    os.unlink(tmp_name)
+                except OSError:
+                    pass
         except (OSError, json.JSONDecodeError, ValueError, TypeError):
             pass
 

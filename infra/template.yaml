@@ -18,9 +18,9 @@ Parameters:
     Default: Delhi
   RequireAuth:
     Type: String
-    Default: "true"
+    Default: "false"
     AllowedValues: ["true", "false"]
-    Description: Require a Cognito bearer token on write endpoints (/subscribe, /cycle).
+    Description: Require a Cognito bearer token on write endpoints (/subscribe, /cycle, /agent). Requires CognitoUserPoolId (or JwksUrl/Issuer) to actually verify tokens.
   SagemakerEndpoint:
     Type: String
     Default: ""

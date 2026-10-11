@@ -93,7 +93,7 @@ class Handler(BaseHTTPRequestHandler):
             raw = self.rfile.read(length)
             data = json.loads(raw.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
-            raise ValueError("body must be valid UTF-8 JSON")
+            raise ValueError("body must be valid UTF-8 JSON") from None
         return data
 
     def _static(self, path: str):

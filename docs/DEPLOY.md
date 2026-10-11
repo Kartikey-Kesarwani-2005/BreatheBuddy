@@ -48,7 +48,7 @@ sam deploy -t infra/template.yaml
 | `Stage` | `prod` | API Gateway stage name |
 | `AlertEmail` | *(blank)* | If set, an email address subscribed to the SNS topic |
 | `City` | `Delhi` | City name shown by the API |
-| `RequireAuth` | `false` | If `true`, `/subscribe` and `/cycle` require a Cognito token |
+| `RequireAuth` | `false` | If `true`, `/subscribe`, `/cycle` and `/agent` require a Cognito token |
 | `SagemakerEndpoint` | *(blank)* | Optional deployed endpoint for the nowcast model |
 | `DomainName` / `HostedZoneId` / `CertificateArn` | *(blank)* | Optional custom domain on CloudFront |
 
