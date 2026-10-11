@@ -1,11 +1,12 @@
 """Pull a live AQI feed and hand it to the store.
 
-Two feeds are wired up:
+Three feeds are wired up:
 
   openaq -- the live OpenAQ v3 API (free key; set BB_OPENAQ_API_KEY).
+  cache  -- the last good live pull, stored on disk (survives restarts and
+            brief OpenAQ outages, so the demo keeps showing real data).
   mock   -- data/stations.json with a small deterministic jitter, used only as
-            an offline/error fallback so the app can never be taken down by a
-            flaky network.
+            a final offline/error fallback so the app can never be taken down.
 
 Choose with BB_AQ_SOURCE (default: openaq). Every cycle records which feed
 actually produced the readings, so the dashboard can show LIVE vs PREVIEW.
@@ -21,7 +22,7 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-from . import config
+from . import config, weather
 from .models import Reading, now_iso
 from .store import STORE, Store
 
@@ -90,6 +91,45 @@ def _near_centre(lat: float, lon: float) -> bool:
     return _distance_m(lat, lon, config.CENTER_LAT, config.CENTER_LON) <= config.OPENAQ_RADIUS_M
 
 
+def _cache_path():
+    return config.CACHE_DIR / "openaq_readings.json"
+
+
+def _save_cache(readings: list[Reading]) -> None:
+    """Persist the last good live pull (best-effort; a write error is non-fatal)."""
+    try:
+        path = _cache_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "saved_at": time.time(),
+            "saved_iso": now_iso(),
+            "readings": [r.to_dict() for r in readings],
+        }), "utf-8")
+    except Exception as exc:  # noqa: BLE001 - caching is an optimisation
+        log.warning("cache: write failed (%s)", exc)
+
+
+def _load_cache() -> tuple[list[Reading], float]:
+    """Return (readings, age_seconds) from the last good pull, or raise."""
+    path = _cache_path()
+    if not path.exists():
+        raise RuntimeError("no cache file")
+    data = json.loads(path.read_text("utf-8"))
+    age = time.time() - float(data.get("saved_at") or 0)
+    if age > config.CACHE_MAX_AGE_S:
+        raise RuntimeError(f"cache too old ({age / 3600:.0f}h)")
+    readings = [Reading.from_dict(r) for r in data.get("readings", [])]
+    if not readings:
+        raise RuntimeError("cache empty")
+    return readings, age
+
+
+def fetch_cache() -> list[Reading]:
+    """Last good live pull from disk (raises when missing/stale/empty)."""
+    readings, _age = _load_cache()
+    return readings
+
+
 def fetch_openaq() -> list[Reading]:
     """Live PM2.5 readings near the city centre from the OpenAQ v3 API.
 
@@ -118,7 +158,7 @@ def fetch_openaq() -> list[Reading]:
     first = _get_page(1)
     first_rows = first.get("results", [])
     total_found = int((first.get("meta") or {}).get("found") or len(first_rows))
-    total_pages = -(-total_found // 1000)  # ceil
+    total_pages = min(-(-total_found // 1000), 20)  # cap: ~20k max rows, prevents hangs
     pages = list(range(2, total_pages + 1))
     rows = first_rows
     if pages:
@@ -145,15 +185,19 @@ def fetch_openaq() -> list[Reading]:
                            ts=now_iso()))
     if not out:
         raise RuntimeError("no recent PM2.5 readings near the centre")
+    _save_cache(out)
     return out
 
 
-FEEDS = {"mock": fetch_mock, "openaq": fetch_openaq}
+FEEDS = {"mock": fetch_mock, "openaq": fetch_openaq, "cache": fetch_cache}
 
 # Which feed actually produced the current readings (live vs bundled fallback),
 # so the dashboard / health-check can report the truth instead of the config.
 LAST_SOURCE = "mock"
 LAST_NOTE = "no feed fetched yet"
+LAST_TS = ""
+LAST_COUNT = 0
+LAST_WEATHER: dict | None = None
 
 
 def effective_source() -> dict:
@@ -163,29 +207,46 @@ def effective_source() -> dict:
         "configured": configured,
         "source": LAST_SOURCE,
         "live": LAST_SOURCE != "mock",
+        "fresh": LAST_SOURCE == "openaq",
         "note": LAST_NOTE,
         "key_set": bool(config.OPENAQ_API_KEY),
+        "updated": LAST_TS,
+        "stations": LAST_COUNT,
+        "weather": LAST_WEATHER,
     }
 
 
 def fetch_readings() -> list[Reading]:
-    """Read from the configured source, falling back to bundled data on error."""
-    global LAST_SOURCE, LAST_NOTE
+    """Read from the configured source, falling back to cache then bundled data."""
+    global LAST_SOURCE, LAST_NOTE, LAST_TS, LAST_COUNT, LAST_WEATHER
     source = (config.AQ_SOURCE or "mock").lower()
-    feed = FEEDS.get(source, fetch_mock)
-    if feed is fetch_mock:
+    if source == "mock" or source not in FEEDS:
+        readings = fetch_mock()
         LAST_SOURCE, LAST_NOTE = "mock", "bundled feed (offline preview)"
-        return feed()
-    try:
-        readings = feed()
-        LAST_SOURCE = source
-        LAST_NOTE = f"live OpenAQ feed, {len(readings)} stations"
-        log.info("ingest: live feed '%s' -> %s readings", source, len(readings))
-        return readings
-    except Exception as exc:  # noqa: BLE001 - never let a feed error kill the cycle
-        LAST_SOURCE, LAST_NOTE = "mock", f"{source} unavailable ({exc}); using bundled feed"
-        log.warning("ingest: live feed '%s' failed (%s); using bundled feed", source, exc)
-        return fetch_mock()
+    else:
+        try:
+            readings = FEEDS[source]()
+            LAST_SOURCE = "openaq" if source == "openaq" else source
+            LAST_NOTE = f"live OpenAQ feed, {len(readings)} stations"
+            log.info("ingest: live feed '%s' -> %s readings", source, len(readings))
+        except Exception as exc:  # noqa: BLE001 - never let a feed error kill the cycle
+            try:
+                readings, age = _load_cache()
+                LAST_SOURCE = "cache"
+                LAST_NOTE = (f"cached live feed ({age / 3600:.1f}h old); "
+                             f"OpenAQ unavailable ({exc})")
+                log.warning("ingest: OpenAQ failed (%s); using cache (%.1fh old)",
+                            exc, age / 3600)
+            except Exception:  # noqa: BLE001 - cache missing/stale -> bundled
+                readings = fetch_mock()
+                LAST_SOURCE = "mock"
+                LAST_NOTE = f"{source} unavailable ({exc}); using bundled feed"
+                log.warning("ingest: live feed '%s' failed (%s); using bundled feed",
+                            source, exc)
+    # Enrich live readings with real weather (mock already ships its own wind).
+    LAST_WEATHER = weather.apply(readings) if LAST_SOURCE != "mock" else None
+    LAST_TS, LAST_COUNT = now_iso(), len(readings)
+    return readings
 
 
 def ingest_once(store: Store | None = None) -> dict:
@@ -202,6 +263,7 @@ def ingest_once(store: Store | None = None) -> dict:
         "source": LAST_SOURCE,
         "live": LAST_SOURCE != "mock",
         "ts": now_iso(),
+        "weather": LAST_WEATHER,
         "stations": [r.station_id for r in readings],
         "elapsed_ms": round((time.time() - t0) * 1000, 1),
     }

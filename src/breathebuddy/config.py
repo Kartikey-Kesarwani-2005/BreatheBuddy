@@ -74,6 +74,18 @@ AQ_SOURCE = os.getenv("BB_AQ_SOURCE", "openaq")
 OPENAQ_API_KEY = os.getenv("BB_OPENAQ_API_KEY", "")
 OPENAQ_BASE = os.getenv("BB_OPENAQ_BASE", "https://api.openaq.org/v3")
 OPENAQ_RADIUS_M = _i("BB_OPENAQ_RADIUS_M", 25000)
+# Cache the last good live pull to disk: survives restarts and lets the demo
+# show real (if slightly aged) data even when OpenAQ is briefly unreachable.
+CACHE_DIR = Path(os.getenv("BB_CACHE_DIR", DATA_DIR / "cache"))
+CACHE_MAX_AGE_S = _i("BB_CACHE_MAX_AGE_S", 6 * 3600)
+
+# --- Weather enrichment (Open-Meteo; free + keyless) ---------------------
+WEATHER_ENABLED = _b("BB_WEATHER", True)
+WEATHER_BASE = os.getenv("BB_WEATHER_BASE", "https://api.open-meteo.com/v1/forecast")
+WEATHER_LAT = _f("BB_WEATHER_LAT", CENTER_LAT)
+WEATHER_LON = _f("BB_WEATHER_LON", CENTER_LON)
+WEATHER_TTL_S = _i("BB_WEATHER_TTL_S", 600)      # re-use a snapshot for 10 min
+WEATHER_TIMEOUT_S = _i("BB_WEATHER_TIMEOUT_S", 10)
 
 # --- AWS integration flags ----------------------------------------------
 # When USE_AWS is on, boto3 is used to talk to LocalStack or real AWS.

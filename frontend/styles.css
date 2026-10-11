@@ -44,7 +44,9 @@ header {
   padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border);
 }
 .src-badge.live { color: #06231a; background: #2ecc71; border-color: #2ecc71; }
+.src-badge.cached { color: #231a06; background: #f5c542; border-color: #f5c542; }
 .src-badge.preview { color: var(--text); background: var(--card); opacity: 0.9; }
+.src-meta { font-size: 10px; opacity: 0.75; letter-spacing: 0.2px; white-space: nowrap; }
 button {
   background: var(--accent); color: #06231a; border: 0; padding: 8px 12px;
   border-radius: 8px; font-weight: 600; cursor: pointer;

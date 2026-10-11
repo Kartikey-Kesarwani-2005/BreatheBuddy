@@ -48,13 +48,20 @@ def verify_token(token: str) -> dict | None:
     """Return decoded claims when the token is valid, otherwise ``None``."""
     if not token:
         return None
-    if not (config.COGNITO_USER_POOL_ID or config.COGNITO_JWKS_URL):
-        return _claims_local()          # dev mode: presence is enough
+    # If a pool is configured, enforce JWT signature verification.
+    # If no pool is configured, dev mode: any bearer token is accepted
+    # (keeps the offline demo friction-free), regardless of REQUIRE_AUTH.
+    if not (config.COGNITO_USER_POOL_ID or config.COGNITO_JWKS_URL or config.COGNITO_ISSUER):
+        # No pool at all → dev mode: presence accepted
+        return _claims_local()
+    # Pool IS configured → require valid JWT
+    if not config.REQUIRE_AUTH:
+        # Auth is optional even with a pool configured; presence is enough
+        # but we still try verification if PyJWT is available
+        pass  # fall through to verification below
     try:
         import jwt
     except ImportError:
-        # A pool IS configured, so write access must hinge on a real signature.
-        # Fail closed (reject) instead of silently accepting anything.
         log.error("auth: PyJWT not installed but a user pool is configured; "
                   "rejecting protected writes until it is installed")
         return None

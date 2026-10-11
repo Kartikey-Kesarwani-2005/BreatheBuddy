@@ -57,16 +57,26 @@ class AWSBridge:
         except Exception as exc:  # pragma: no cover
             log.warning("S3 put failed: %s", exc)
         try:
-            with self._ddb.batch_writer() as batch:
-                for r in readings:
-                    batch.put_item(Item={
-                        "station_id": {"S": r.station_id},
-                        "ts": {"S": r.ts},
-                        "lat": {"N": str(r.lat)},
-                        "lon": {"N": str(r.lon)},
-                        "aqi": {"N": str(r.aqi)},
-                        "payload": {"S": json.dumps(r.to_dict())},
-                    })
+            self._ddb.batch_write_item(
+                TableName=config.DDB_READINGS_TABLE,
+                RequestItems={
+                    config.DDB_READINGS_TABLE: [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "station_id": {"S": r.station_id},
+                                    "ts": {"S": r.ts},
+                                    "lat": {"N": str(r.lat)},
+                                    "lon": {"N": str(r.lon)},
+                                    "aqi": {"N": str(r.aqi)},
+                                    "payload": {"S": json.dumps(r.to_dict())},
+                                }
+                            }
+                        }
+                        for r in readings
+                    ]
+                },
+            )
         except Exception as exc:  # pragma: no cover
             log.warning("DynamoDB readings put failed: %s", exc)
 

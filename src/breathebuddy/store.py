@@ -98,10 +98,17 @@ class Store:
             config.OUTBOX.parent.mkdir(parents=True, exist_ok=True)
             existing: list[dict] = []
             if config.OUTBOX.exists():
-                existing = json.loads(config.OUTBOX.read_text("utf-8") or "[]")
+                try:
+                    existing = json.loads(config.OUTBOX.read_text("utf-8") or "[]")
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    existing = []
             existing.append(alert.to_dict())
-            config.OUTBOX.write_text(json.dumps(existing[-200:], indent=2), "utf-8")
-        except OSError:
+            # Write atomically: temp file + os.replace
+            import tempfile, os
+            tmp = config.OUTBOX.with_suffix(".tmp")
+            tmp.write_text(json.dumps(existing[-200:], indent=2), "utf-8")
+            os.replace(str(tmp), str(config.OUTBOX))
+        except (OSError, json.JSONDecodeError, ValueError, TypeError):
             pass
 
     def recent_alerts(self, limit: int = 50) -> list[Alert]:

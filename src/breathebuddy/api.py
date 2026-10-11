@@ -90,9 +90,11 @@ class Handler(BaseHTTPRequestHandler):
         if not length:
             return {}
         try:
-            return json.loads(self.rfile.read(length).decode("utf-8"))
-        except json.JSONDecodeError:
-            return {}
+            raw = self.rfile.read(length)
+            data = json.loads(raw.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raise ValueError("body must be valid UTF-8 JSON")
+        return data
 
     def _static(self, path: str):
         rel = "index.html" if path in ("/", "") else path.lstrip("/")
@@ -210,7 +212,10 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if int(self.headers.get("Content-Length", 0) or 0) > MAX_BODY:
             return self._send({"error": "request too large"}, 413)
-        body = self._json_body()
+        try:
+            body = self._json_body()
+        except ValueError as exc:
+            return self._send({"error": str(exc)}, 400)
         if not isinstance(body, dict):
             return self._send({"error": "body must be a JSON object"}, 400)
 

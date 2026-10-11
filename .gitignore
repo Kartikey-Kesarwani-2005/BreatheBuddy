@@ -11,6 +11,7 @@ infra/localstack/.localstack/
 
 # Local demo output
 data/alerts_outbox.json
+data/cache/
 
 # Tooling artifacts
 .coverage

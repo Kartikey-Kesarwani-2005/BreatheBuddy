@@ -51,7 +51,8 @@ const I18N = {
     sub_done: "Subscribed {name} ({kind}) - alert threshold AQI {threshold}.",
     leg_good: "Good (0-50)", leg_sat: "Satisfactory (51-100)", leg_mod: "Moderate (101-200)",
     leg_poor: "Poor (201-300)", leg_vpoor: "Very poor (301-400)", leg_sev: "Severe (400+)",
-    src_live: "LIVE · OpenAQ", src_preview: "PREVIEW · bundled data"
+    src_live: "LIVE · OpenAQ", src_preview: "PREVIEW · bundled data",
+    src_cached: "LIVE · cached", fresh_line: "Updated {time} · {n} stations · wind {wind} m/s"
   },
   hi: {
     run_cycle: "15-मिनट चक्र चलाएँ", sign_in: "साइन इन (Cognito)",
@@ -86,7 +87,8 @@ const I18N = {
     sub_done: "{name} सब्सक्राइब हुआ ({kind}) - अलर्ट थ्रेशोल्ड AQI {threshold}।",
     leg_good: "अच्छा (0-50)", leg_sat: "संतोषजनक (51-100)", leg_mod: "मध्यम (101-200)",
     leg_poor: "खराब (201-300)", leg_vpoor: "बहुत खराब (301-400)", leg_sev: "गंभीर (400+)",
-    src_live: "लाइव · OpenAQ", src_preview: "प्रीव्यू · बंडल डेटा"
+    src_live: "लाइव · OpenAQ", src_preview: "प्रीव्यू · बंडल डेटा",
+    src_cached: "लाइव · कैश", fresh_line: "अपडेट {time} · {n} स्टेशन · हवा {wind} मी/से"
   }
 };
 
@@ -103,6 +105,9 @@ function tf(key, vars) {
   for (const k in (vars || {})) s = s.split("{" + k + "}").join(vars[k]);
   return s;
 }
+
+// --- Auth token (set by initAuth / Cognito redirect) ---
+let AUTH_TOKEN = "";
 
 // --- colour contrast helpers ----------------------------------------------
 function _hexRgb(h) {
@@ -130,9 +135,14 @@ async function fetchJSON(path, opts = {}, timeoutMs = 8000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(API(path), { ...opts, signal: ctrl.signal });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    return await res.json();
+    const headers = { ...opts.headers };
+    if (AUTH_TOKEN && opts.method && opts.method === "POST") {
+      headers["Authorization"] = `Bearer ${AUTH_TOKEN}`;
+    }
+    const res = await fetch(API(path), { ...opts, signal: ctrl.signal, headers });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+    return data;
   } finally {
     clearTimeout(timer);
   }
@@ -500,7 +510,7 @@ async function loadSchoolCard(id) {
   try {
     card = await fetchJSON(`/school/${id}/today`);
   } catch (e) {
-    setErr(el, t("err_server"));
+    setErr(el, e.message || t("err_server"));
     return;
   }
   if (card.error || card.aqi_now === undefined) {
@@ -559,7 +569,7 @@ async function loadAlerts() {
   try {
     alerts = await fetchJSON("/alerts");
   } catch (e) {
-    el.textContent = t("err_server");
+    el.textContent = e.message || t("err_server");
     return;
   }
   if (!Array.isArray(alerts)) { el.textContent = t("no_alerts"); return; }
@@ -600,7 +610,7 @@ async function compareRoutes() {
     try {
       res = await fetchJSON(`/route?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
     } catch (e) {
-      setErr(el, t("err_server"));
+      setErr(el, e.message || t("err_server"));
       return;
     }
     if (res.error || !res.fastest) { setErr(el, res.error || t("no_route")); return; }
@@ -621,7 +631,7 @@ async function askAgent() {
         body: JSON.stringify({ question, engine })
       }, 20000);
     } catch (e) {
-      setErr(out, t("err_server"));
+      setErr(out, e.message || t("err_server"));
       return;
     }
     if (res.error) { setErr(out, res.error); return; }
@@ -638,7 +648,7 @@ async function runCycle() {
     try {
       await fetchJSON("/cycle", { method: "POST" });
     } catch (e) {
-      document.getElementById("alerts").innerHTML = `<span class="err">${t("err_server")}</span>`;
+      document.getElementById("alerts").innerHTML = `<span class="err">${e.message || t("err_server")}</span>`;
     }
   });
   await refreshAll();
@@ -673,11 +683,28 @@ function initAuth() {
       + "(see infra/ + frontend/amplify-config.js).");
     return;
   }
-  btn.onclick = () => { window.location.href = CFG.cognito.hostedUi; };
+  // If we already have a token, just enable the buttons; otherwise start the flow.
+  if (AUTH_TOKEN) {
+    btn.textContent = "Signed in";
+    btn.disabled = true;
+    return;
+  }
+  // Start Cognito OAuth flow: redirect to hosted UI, then parse token from hash on return.
+  btn.onclick = () => {
+    const redirectUri = window.location.origin + window.location.pathname;
+    window.location.href = `${CFG.cognito.hostedUi}?response_type=token&client_id=${CFG.cognito.client_id}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  };
 }
 
 function wireControls() {
   initAuth();
+  // Parse Cognito token from URL hash (set by redirect after auth)
+  const hash = location.hash.match(/access_token=([^&]+)/);
+  if (hash && !AUTH_TOKEN) {
+    AUTH_TOKEN = hash[1];
+    btn.textContent = "Signed in";
+    btn.disabled = true;
+  }
   const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   bind("btn-route", compareRoutes);
   bind("btn-pick", () => togglePickMode());
@@ -692,15 +719,34 @@ function wireControls() {
   if (form) form.onsubmit = submitSubscribe;
 }
 
-// Show LIVE (OpenAQ) vs PREVIEW (bundled fallback) honestly in the header.
+// Show LIVE (OpenAQ / cached) vs PREVIEW (bundled) honestly in the header,
+// plus a freshness line (last update time, station count, live wind).
 let SRC_LIVE = false;
+function fmtTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
 function setBadge(ds) {
   const el = document.getElementById("src-badge");
   if (!el) return;
   SRC_LIVE = !!ds.live;
-  el.textContent = ds.live ? t("src_live") : t("src_preview");
-  el.className = "src-badge " + (ds.live ? "live" : "preview");
+  const kind = ds.source === "cache" ? "src_cached" : (ds.live ? "src_live" : "src_preview");
+  el.textContent = t(kind);
+  el.className = "src-badge " + (ds.source === "cache" ? "cached" : (ds.live ? "live" : "preview"));
   el.title = ds.note || "";
+  const meta = document.getElementById("src-meta");
+  if (meta) {
+    if (ds.live && ds.updated) {
+      const wind = ds.weather && ds.weather.wind_speed;
+      meta.textContent = t("fresh_line")
+        .replace("{time}", fmtTime(ds.updated))
+        .replace("{n}", ds.stations || 0)
+        .replace("{wind}", wind != null ? wind : "-");
+    } else {
+      meta.textContent = "";
+    }
+  }
 }
 
 async function loadSource() {

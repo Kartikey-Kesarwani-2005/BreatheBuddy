@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
@@ -320,13 +323,20 @@ def main() -> int:
     check("PM2.5 -> AQI breakpoints", pm25_to_aqi(60) == 100.0 and pm25_to_aqi(30) == 50.0)
     check("live feed is the default",
           str(os.environ.get("BB_AQ_SOURCE", "openaq")).lower() == "openaq")
-    _src, _key = config.AQ_SOURCE, config.OPENAQ_API_KEY
+    _src, _key, _cache = config.AQ_SOURCE, config.OPENAQ_API_KEY, config.CACHE_DIR
+    _wx = config.WEATHER_ENABLED
+    _tmp = tempfile.mkdtemp()
     try:
         config.AQ_SOURCE = "openaq"           # no key -> must fall back to bundled
         config.OPENAQ_API_KEY = ""
+        config.CACHE_DIR = Path(_tmp)         # isolate from any real cache on disk
+        config.WEATHER_ENABLED = False
         live_fallback = fetch_readings()
     finally:
         config.AQ_SOURCE, config.OPENAQ_API_KEY = _src, _key
+        config.CACHE_DIR = _cache
+        config.WEATHER_ENABLED = _wx
+        shutil.rmtree(_tmp, ignore_errors=True)
     check("live feed falls back to bundled data",
           bool(live_fallback) and effective_source()["live"] is False)
     check("auth accepts token offline (dev mode)", auth.verify_token("x") is not None)
