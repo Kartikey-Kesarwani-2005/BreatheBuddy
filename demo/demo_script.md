@@ -7,6 +7,13 @@
 **Setup:** run `python run.py`, open http://localhost:8000. Have a second terminal
 with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
 
+> **Verified on the day of recording (Oct 11, 2026):** `/health` returns **LIVE
+> OpenAQ feed, 64 stations** + weather from Open-Meteo; `/aqi` at a map point
+> returned `aqi_now 117.2` with a 6 h forecast peaking `138.3` and the
+> stubble-burning banner; the agent answered a school question **via the real Cedar
+> engine (`cedarpy`)**. Numbers drift every 15 min - that's fine, the *blocked /
+> allowed logic* is what matters (see Pro tips).
+
 ---
 
 ## 0:00 - 0:25 · Problem & who it's for
@@ -101,7 +108,7 @@ with `python run.py --demo` ready as a fallback proof. Screen-record with audio.
   template, stubble plume, Strands SDK, SQS buffer, JWT auth, OpenAQ adapter, no
   out-of-list AWS services).
 - `python run.py --demo` → all five acceptance criteria printed.
-- `python -m unittest discover -s tests -t .` → **57 tests pass** (CI runs these).
+- `python -m unittest discover -s tests -t .` → **71 tests pass** (CI runs these).
 
 ---
 

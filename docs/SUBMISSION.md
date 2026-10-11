@@ -75,7 +75,7 @@ CloudWatch metrics/alarm, and CloudFront + S3 + Route 53 hosting.
 ```bash
 python run.py                 # dashboard at http://localhost:8000 (no installs)
 python scripts/selfcheck.py   # 100/100 end-to-end checks
-python -m unittest discover -s tests -t .   # 52 unit tests
+python -m unittest discover -s tests -t .   # 71 unit tests
 ```
 
 Docs for reviewers: [`ARCHITECTURE.md`](ARCHITECTURE.md) (code map),
